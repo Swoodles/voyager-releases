@@ -2204,16 +2204,37 @@ function removeRouteStop(i) {
   clearAllRoute();
 }
 
-// ——— MAP MARKERS ———
+// ——— MAP MARKERS — Google-style pin markers ———
+function makePinIcon(label, color, shape) {
+  // shape: 'pill' for stop labels, 'pin' for route stops
+  const bg = color || '#4f8ef7';
+  if (shape === 'stop') {
+    return L.divIcon({
+      className: '',
+      html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+        <div style="background:${bg};color:#fff;padding:4px 9px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,0.55);border:2px solid rgba(255,255,255,0.35)">${label}</div>
+        <div style="width:2px;height:7px;background:${bg}"></div>
+        <div style="width:5px;height:5px;border-radius:50%;background:${bg};border:1.5px solid #fff"></div>
+      </div>`,
+      iconAnchor: [0, 0],
+    });
+  }
+  // numbered route pin
+  return L.divIcon({
+    className: '',
+    html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+      <div style="background:${bg};color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.55);border:2px solid #fff;letter-spacing:0.2px">${label}</div>
+      <div style="width:2px;height:9px;background:${bg}"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:${bg};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>
+    </div>`,
+    iconAnchor: [0, 0],
+  });
+}
+
 function addMapMarker(lat, lng, label, color) {
   if (!leafletMap) return null;
   const bg = color || MODE_COLOR[routeTransportMode] || '#4f8ef7';
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="background:${bg};color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5)">${label}</div>`,
-    iconAnchor: [0, 0],
-  });
-  const m = L.marker([lat, lng], { icon }).addTo(leafletMap);
+  const m = L.marker([lat, lng], { icon: makePinIcon(label, bg, 'pin') }).addTo(leafletMap);
   mapMarkers.push(m);
   return m;
 }
@@ -2267,60 +2288,98 @@ async function optimizeRoute() {
   clearMapMarkers();
   routeStops.forEach((s, i) => addMapMarker(s.lat, s.lng, `${i+1}. ${s.name}`));
 
-  // ——— TRANSIT MODE: multi-modal walk + transit routing ———
   if (routeTransportMode === 'transit') {
     await optimizeTransitRoute();
     return;
   }
 
-  const profile = OSRM_PROFILE[routeTransportMode] || 'foot';
+  const osrmProfile = OSRM_PROFILE[routeTransportMode] || 'foot';
+  const valhallaCosting = { walking:'pedestrian', cycling:'bicycle', driving:'auto' }[routeTransportMode] || 'pedestrian';
   const coordStr = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
   const extras = (routeTransportMode === 'walking' || routeTransportMode === 'cycling') ? '&exclude=motorway' : '';
 
   showToast('⏳ Calculating route...');
 
-  // Primary: router.project-osrm.org — Fallback: routing.openstreetmap.de
-  const endpoints = [
-    `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
-    `https://routing.openstreetmap.de/routed-${profile === 'foot' ? 'foot' : profile === 'bike' ? 'bike' : 'car'}/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
-  ];
+  // Try OSRM primary → OSRM fallback → Valhalla
+  let latlngs = null, totalDist = 0, totalDur = 0, legs = [];
 
-  let data = null;
-  for (const url of endpoints) {
+  // OSRM attempt
+  const osrmUrls = [
+    `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
+    `https://routing.openstreetmap.de/routed-${osrmProfile === 'foot' ? 'foot' : osrmProfile === 'bike' ? 'bike' : 'car'}/route/v1/${osrmProfile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
+  ];
+  for (const url of osrmUrls) {
     try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) continue;
       const json = await resp.json();
-      if (json.code === 'Ok' && json.routes?.length) { data = json; break; }
+      if (json.code === 'Ok' && json.routes?.length) {
+        const route = json.routes[0];
+        latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
+        totalDist = route.distance; totalDur = route.duration;
+        legs = route.legs || [];
+        break;
+      }
     } catch(e) { continue; }
   }
 
-  if (!data) {
-    showToast('Routing error — check your connection or try different stops.');
+  // Valhalla fallback
+  if (!latlngs) {
+    try {
+      const body = {
+        locations: routeStops.map(s => ({ lat: s.lat, lon: s.lng })),
+        costing: valhallaCosting,
+        shape_format: 'geojson',
+        directions_options: { units: 'kilometers' },
+      };
+      const resp = await fetch('https://valhalla1.openstreetmap.de/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        const trip = json.trip;
+        if (trip?.legs?.length) {
+          latlngs = trip.legs.flatMap(leg =>
+            (leg.shape || []).map(pt => [pt[0], pt[1]])
+          );
+          if (!latlngs.length && trip.legs[0]?.shape) {
+            latlngs = trip.legs[0].shape;
+          }
+          totalDist = (trip.summary?.length || 0) * 1000;
+          totalDur  = trip.summary?.time || 0;
+          legs = trip.legs.map((leg, i) => ({ distance: leg.summary.length * 1000, duration: leg.summary.time }));
+        }
+      }
+    } catch(e) {}
+  }
+
+  if (!latlngs || latlngs.length < 2) {
+    showToast('Routing error — could not find a route. Try different stops.');
     return;
   }
 
-  const route = data.routes[0];
-  const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
   mapRouteLayer = L.polyline(latlngs, {
     color: MODE_COLOR[routeTransportMode] || '#4f8ef7',
-    weight: 4, opacity: 0.88,
+    weight: 5, opacity: 0.9,
   }).addTo(leafletMap);
   leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
 
-  document.getElementById('routeDistance').textContent = formatDistance(route.distance);
-  document.getElementById('routeDuration').textContent = formatDuration(route.duration);
+  document.getElementById('routeDistance').textContent = formatDistance(totalDist);
+  document.getElementById('routeDuration').textContent = formatDuration(totalDur);
 
   const legsEl = document.getElementById('routeLegs');
-  if (legsEl && route.legs) {
-    legsEl.innerHTML = route.legs.map((leg, i) => `
+  if (legsEl && legs.length) {
+    legsEl.innerHTML = legs.map((leg, i) => `
       <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:11px">
-        <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i].name} → ${routeStops[i+1].name}</div>
+        <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i]?.name || ''} → ${routeStops[i+1]?.name || ''}</div>
         <div style="color:var(--text3)">${formatDistance(leg.distance)} · ${formatDuration(leg.duration)}</div>
       </div>`).join('');
   }
 
-  showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(route.distance)}, ${formatDuration(route.duration)}`);
+  showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(totalDist)}, ${formatDuration(totalDur)}`);
 
   } catch(err) {
     showToast('Routing error — check your connection.');
@@ -2328,184 +2387,207 @@ async function optimizeRoute() {
   }
 }
 
-// ——— TRANSIT MULTI-MODAL ROUTING ———
-// Finds real transit stops near start/end, draws walking + transit segments separately
+// ——— POLYLINE DECODER (for Transitous/OTP responses) ———
+function decodePolyline(str, precision = 5) {
+  let i = 0, lat = 0, lng = 0, coords = [];
+  while (i < str.length) {
+    let b, shift = 0, result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+// ——— TRANSIT MULTI-MODAL ROUTING (Transitous real routes + Overpass fallback) ———
 async function optimizeTransitRoute() {
   const origin = routeStops[0];
   const dest   = routeStops[routeStops.length - 1];
+  const isBayArea = origin.lat > 36.9 && origin.lat < 38.9 && origin.lng > -122.9 && origin.lng < -121.2;
 
-  showToast('⏳ Finding transit route...');
-
-  // Detect Bay Area (BART/VTA zone)
-  const isBayArea = (origin.lat > 36.9 && origin.lat < 38.9 && origin.lng > -122.9 && origin.lng < -121.2);
-
-  // Find nearest transit stop to origin and destination via Overpass
-  async function findNearestStop(lat, lng, radius = 800) {
-    const q = `[out:json][timeout:15];
-(
-  node["public_transport"="stop_position"][name](around:${radius},${lat},${lng});
-  node["highway"="bus_stop"][name](around:${radius},${lat},${lng});
-  node["railway"~"station|halt|tram_stop"][name](around:${radius},${lat},${lng});
-  node["metro"="station"][name](around:${radius},${lat},${lng});
-);
-out body 10;`;
-    try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST', headers: { 'Accept': 'application/json' },
-        body: 'data=' + encodeURIComponent(q),
-        signal: AbortSignal.timeout(10000),
-      });
-      const json = await r.json();
-      const stops = (json.elements || []).filter(e => e.lat && e.lon);
-      if (!stops.length) return null;
-      // Sort by distance to point
-      stops.sort((a, b) => {
-        const da = Math.hypot(a.lat - lat, a.lon - lng);
-        const db = Math.hypot(b.lat - lat, b.lon - lng);
-        return da - db;
-      });
-      return stops[0];
-    } catch(e) { return null; }
-  }
-
-  // Fetch OSRM walking route between two points
-  async function walkRoute(fromLat, fromLng, toLat, toLng) {
-    const url = `https://router.project-osrm.org/route/v1/foot/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      const json = await r.json();
-      if (json.code === 'Ok' && json.routes?.length) return json.routes[0];
-    } catch(e) {}
-    // Fallback: straight line (minimal)
-    return { geometry: { coordinates: [[fromLng, fromLat], [toLng, toLat]] }, distance: Math.hypot(toLat - fromLat, toLng - fromLng) * 111000, duration: 0 };
-  }
-
-  // Show transit panel immediately
+  showToast('⏳ Finding real transit route...');
   const tp = document.getElementById('transitPanel');
   if (tp) tp.style.display = 'block';
 
-  const [stopNearOrigin, stopNearDest] = await Promise.all([
-    findNearestStop(origin.lat, origin.lng),
-    findNearestStop(dest.lat, dest.lng),
-  ]);
-
-  if (!stopNearOrigin || !stopNearDest) {
-    showToast('⚠ No transit stops found nearby. Try different stops or a more urban area.');
-    // Fall back to walking route
-    const url = `https://router.project-osrm.org/route/v1/foot/${routeStops.map(s=>`${s.lng},${s.lat}`).join(';')}?overview=full&geometries=geojson`;
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  // ——— Step 1: Try Transitous (real GTFS routing — works for Europe + growing globally) ———
+  let itinerary = null;
+  try {
+    const url = `https://api.transitous.org/plan` +
+      `?fromPlace=${origin.lat},${origin.lng}` +
+      `&toPlace=${dest.lat},${dest.lng}` +
+      `&mode=TRANSIT,WALK&numItineraries=1&locale=en`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(14000) });
+    if (r.ok) {
       const json = await r.json();
-      if (json.code === 'Ok') {
-        const latlngs = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        mapRouteLayer = L.polyline(latlngs, { color: '#7c5cbf', weight: 3, dashArray: '8,6' }).addTo(leafletMap);
-        leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
-        document.getElementById('routeDistance').textContent = formatDistance(json.routes[0].distance);
-        document.getElementById('routeDuration').textContent = formatDuration(json.routes[0].duration);
+      itinerary = json.plan?.itineraries?.[0] || null;
+    }
+  } catch(e) {}
+
+  if (itinerary?.legs?.length) {
+    // ——— Draw each leg with appropriate style ———
+    clearRouteLines();
+    const allCoords = [];
+    const layers = [];
+    const legMeta = [];
+
+    const legColors = {
+      WALK: '#5bbbf5', BUS: '#f4a261', SUBWAY: '#e63946',
+      RAIL: '#2a9d8f', TRAM: '#6a4c93', FERRY: '#2dd4b5',
+      CABLE_CAR: '#e76f51', FUNICULAR: '#e76f51',
+    };
+
+    for (const leg of itinerary.legs) {
+      const coords = decodePolyline(leg.legGeometry?.points || '');
+      if (!coords.length) continue;
+      const latlngs = coords.map(c => [c[0], c[1]]);
+      allCoords.push(...latlngs);
+
+      const isWalk = leg.mode === 'WALK';
+      const legColor = legColors[leg.mode] || '#7c5cbf';
+      const line = L.polyline(latlngs, {
+        color: isWalk ? '#5bbbf5' : legColor,
+        weight: isWalk ? 3 : 5,
+        dashArray: isWalk ? '7,6' : null,
+        opacity: 0.92,
+      }).addTo(leafletMap);
+
+      const routeLabel = leg.route ? `${leg.mode === 'SUBWAY' ? '🚇' : leg.mode === 'RAIL' ? '🚆' : leg.mode === 'TRAM' ? '🚃' : '🚌'} ${leg.route}` : '🚶 Walk';
+      line.bindTooltip(routeLabel, { sticky: true });
+      layers.push(line);
+
+      // Board/alight markers for transit legs
+      if (!isWalk && leg.from?.name && leg.from.lat && leg.from.lon) {
+        const sm = L.marker([leg.from.lat, leg.from.lon], {
+          icon: makePinIcon(`🚏 ${leg.from.name}`, legColor, 'stop')
+        }).addTo(leafletMap);
+        transitStopMarkers.push(sm);
       }
-    } catch(e) {}
+
+      legMeta.push({
+        mode: leg.mode,
+        route: leg.route || '',
+        from: leg.from?.name || '',
+        to: leg.to?.name || '',
+        duration: Math.round((leg.endTime - leg.startTime) / 1000),
+        distance: leg.distance || 0,
+        color: legColor,
+        isWalk,
+        headsign: leg.headsign || '',
+      });
+    }
+
+    mapRouteLayer = layers;
+    if (allCoords.length) leafletMap.fitBounds(L.latLngBounds(allCoords), { padding: [30, 30] });
+
+    // Summary
+    const totalDur = Math.round((itinerary.endTime - itinerary.startTime) / 1000);
+    const totalDist = itinerary.legs.reduce((a, l) => a + (l.distance || 0), 0);
+    document.getElementById('routeDistance').textContent = formatDistance(totalDist);
+    document.getElementById('routeDuration').textContent = formatDuration(totalDur);
+
+    // Legs breakdown
+    const legsEl = document.getElementById('routeLegs');
+    if (legsEl) {
+      legsEl.innerHTML = legMeta.map(l => `
+        <div style="padding:8px 10px;background:${l.isWalk ? 'rgba(91,187,245,0.08)' : 'rgba(124,92,191,0.1)'};border-radius:8px;border:1px solid ${l.isWalk ? 'rgba(91,187,245,0.25)' : `${l.color}44`};font-size:11px;margin-bottom:4px">
+          <div style="font-weight:600;color:${l.isWalk ? '#5bbbf5' : l.color};margin-bottom:3px">
+            ${l.isWalk ? '🚶 Walk' : `${l.mode === 'SUBWAY' ? '🚇' : l.mode === 'RAIL' ? '🚆' : l.mode === 'TRAM' ? '🚃' : '🚌'} ${l.route}${l.headsign ? ' → ' + l.headsign : ''}`}
+          </div>
+          ${l.from && l.to ? `<div style="color:var(--text3);font-size:10px;margin-bottom:2px">${l.from} → ${l.to}</div>` : ''}
+          <div style="color:var(--text2)">${formatDistance(l.distance)} · ${formatDuration(l.duration)}</div>
+        </div>`).join('');
+    }
+
+    showToast(`✓ Transit route via Transitous · ${formatDuration(totalDur)}`);
+
+    // Load live departure data for transit stops
+    const firstTransitLeg = itinerary.legs.find(l => l.mode !== 'WALK');
+    if (firstTransitLeg?.from) await loadTransitData({ coordinates: [[firstTransitLeg.from.lon, firstTransitLeg.from.lat]] });
     return;
   }
 
-  // Get walking legs
-  const [walkToStop, walkFromStop] = await Promise.all([
-    walkRoute(origin.lat, origin.lng, stopNearOrigin.lat, stopNearOrigin.lon),
-    walkRoute(stopNearDest.lat, stopNearDest.lon, dest.lat, dest.lng),
-  ]);
+  // ——— Step 2: Fallback — Overpass stop-finding + visual decomposition ———
+  showToast('⏳ No schedule data — finding nearest stops...');
 
-  // Transit segment: straight line or OSRM driving proxy between stops
-  const transitLatlngs = [
-    [stopNearOrigin.lat, stopNearOrigin.lon],
-    [stopNearDest.lat, stopNearDest.lon],
-  ];
-
-  // Draw the three segments
-  clearRouteLines();
-  const layers = [];
-
-  // Walk leg 1: origin → transit stop (dashed light blue)
-  const walk1Coords = walkToStop.geometry.coordinates.map(c => [c[1], c[0]]);
-  const walkLine1 = L.polyline(walk1Coords, {
-    color: '#5bbbf5', weight: 3, dashArray: '7,5', opacity: 0.9,
-  }).addTo(leafletMap);
-  walkLine1.bindTooltip(`🚶 Walk to ${stopNearOrigin.tags?.name || 'Transit Stop'}`);
-  layers.push(walkLine1);
-
-  // Transit leg: stop → stop (solid purple, thick)
-  const transitLine = L.polyline(transitLatlngs, {
-    color: '#7c5cbf', weight: 5, opacity: 0.92,
-  }).addTo(leafletMap);
-  transitLine.bindTooltip(`🚌 Transit: ${stopNearOrigin.tags?.name || 'Stop'} → ${stopNearDest.tags?.name || 'Stop'}`);
-  layers.push(transitLine);
-
-  // Walk leg 2: transit stop → destination (dashed light blue)
-  const walk2Coords = walkFromStop.geometry.coordinates.map(c => [c[1], c[0]]);
-  const walkLine2 = L.polyline(walk2Coords, {
-    color: '#5bbbf5', weight: 3, dashArray: '7,5', opacity: 0.9,
-  }).addTo(leafletMap);
-  walkLine2.bindTooltip(`🚶 Walk to ${dest.name}`);
-  layers.push(walkLine2);
-
-  mapRouteLayer = layers;
-
-  // Add stop markers
-  const stopIcon = (label, color) => L.divIcon({
-    className: '',
-    html: `<div style="background:${color};color:#fff;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${label}</div>`,
-    iconAnchor: [0, 0],
-  });
-  const m1 = L.marker([stopNearOrigin.lat, stopNearOrigin.lon], { icon: stopIcon(`🚏 ${stopNearOrigin.tags?.name || 'Board here'}`, '#7c5cbf') }).addTo(leafletMap);
-  const m2 = L.marker([stopNearDest.lat, stopNearDest.lon], { icon: stopIcon(`🚏 ${stopNearDest.tags?.name || 'Alight here'}`, '#7c5cbf') }).addTo(leafletMap);
-  transitStopMarkers.push(m1, m2);
-
-  // Fit all layers
-  const allCoords = [...walk1Coords, ...transitLatlngs, ...walk2Coords];
-  const bounds = L.latLngBounds(allCoords);
-  leafletMap.fitBounds(bounds, { padding: [30, 30] });
-
-  // Calculate distances and times
-  const walk1Dist = walkToStop.distance || 0;
-  const walk1Time = walkToStop.duration || (walk1Dist / 1.4); // 1.4 m/s walking
-  const walk2Dist = walkFromStop.distance || 0;
-  const walk2Time = walkFromStop.duration || (walk2Dist / 1.4);
-  const transitDist = Math.hypot(stopNearDest.lat - stopNearOrigin.lat, stopNearDest.lon - stopNearOrigin.lon) * 111000;
-  const estimatedTransitTime = transitDist / 10; // ~10 m/s average transit speed
-  const totalDist = walk1Dist + transitDist + walk2Dist;
-  const totalTime = walk1Time + estimatedTransitTime + walk2Time;
-
-  document.getElementById('routeDistance').textContent = formatDistance(totalDist);
-  document.getElementById('routeDuration').textContent = formatDuration(totalTime);
-
-  // Legs breakdown
-  const legsEl = document.getElementById('routeLegs');
-  if (legsEl) {
-    legsEl.innerHTML = `
-      <div style="padding:8px 10px;background:rgba(91,187,245,0.1);border-radius:8px;border:1px solid rgba(91,187,245,0.3);font-size:11px">
-        <div style="font-weight:600;margin-bottom:3px;color:#5bbbf5">🚶 Walk to stop</div>
-        <div style="color:var(--text3)">${origin.name} → ${stopNearOrigin.tags?.name || 'Transit Stop'}</div>
-        <div style="color:var(--text2);margin-top:2px">${formatDistance(walk1Dist)} · ${formatDuration(walk1Time)}</div>
-      </div>
-      <div style="padding:8px 10px;background:rgba(124,92,191,0.12);border-radius:8px;border:1px solid rgba(124,92,191,0.35);font-size:11px;margin-top:5px">
-        <div style="font-weight:600;margin-bottom:3px;color:var(--accent2)">🚌 Transit</div>
-        <div style="color:var(--text3)">${stopNearOrigin.tags?.name || 'Stop'} → ${stopNearDest.tags?.name || 'Stop'}</div>
-        <div style="color:var(--text2);margin-top:2px">~${formatDistance(transitDist)} · ~${formatDuration(estimatedTransitTime)}</div>
-        ${isBayArea ? `<div style="color:var(--accent);font-size:10px;margin-top:3px">📡 Bay Area: BART · VTA — check departures below</div>` : ''}
-      </div>
-      <div style="padding:8px 10px;background:rgba(91,187,245,0.1);border-radius:8px;border:1px solid rgba(91,187,245,0.3);font-size:11px;margin-top:5px">
-        <div style="font-weight:600;margin-bottom:3px;color:#5bbbf5">🚶 Walk to destination</div>
-        <div style="color:var(--text3)">${stopNearDest.tags?.name || 'Transit Stop'} → ${dest.name}</div>
-        <div style="color:var(--text2);margin-top:2px">${formatDistance(walk2Dist)} · ${formatDuration(walk2Time)}</div>
-      </div>`;
+  async function findNearestStop(lat, lng) {
+    const q = `[out:json][timeout:12];(node["public_transport"="stop_position"][name](around:800,${lat},${lng});node["highway"="bus_stop"][name](around:800,${lat},${lng});node["railway"~"station|halt|tram_stop"][name](around:800,${lat},${lng}););out body 10;`;
+    try {
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body:'data='+encodeURIComponent(q), signal: AbortSignal.timeout(10000) });
+      const json = await r.json();
+      const stops = (json.elements||[]).filter(e=>e.lat&&e.lon).sort((a,b)=>Math.hypot(a.lat-lat,a.lon-lng)-Math.hypot(b.lat-lat,b.lon-lng));
+      return stops[0] || null;
+    } catch(e) { return null; }
   }
 
-  showToast(`✓ Transit route: ${formatDistance(totalDist)}, ~${formatDuration(totalTime)}`);
+  async function osrmWalk(fromLat, fromLng, toLat, toLng) {
+    try {
+      const r = await fetch(`https://router.project-osrm.org/route/v1/foot/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(9000) });
+      const j = await r.json();
+      if (j.code==='Ok') return j.routes[0];
+    } catch(e) {}
+    return { geometry:{ coordinates:[[fromLng,fromLat],[toLng,toLat]] }, distance: Math.hypot(toLat-fromLat,toLng-fromLng)*111000, duration: 0 };
+  }
 
-  // Load transit stop data and live departures
-  const midGeometry = { coordinates: [[stopNearOrigin.lon, stopNearOrigin.lat], [stopNearDest.lon, stopNearDest.lat]] };
-  await loadTransitData(midGeometry, stopNearOrigin, stopNearDest);
+  const [stopA, stopB] = await Promise.all([findNearestStop(origin.lat, origin.lng), findNearestStop(dest.lat, dest.lng)]);
+
+  if (!stopA || !stopB) {
+    showToast('⚠ No transit stops found. Showing walking route instead.');
+    await (async () => { const saved = routeTransportMode; routeTransportMode='walking'; await optimizeRoute(); routeTransportMode=saved; })();
+    return;
+  }
+
+  const [walkLeg1, walkLeg2] = await Promise.all([osrmWalk(origin.lat, origin.lng, stopA.lat, stopA.lon), osrmWalk(stopB.lat, stopB.lon, dest.lat, dest.lng)]);
+
+  clearRouteLines();
+  const layers = [];
+  const w1 = L.polyline(walkLeg1.geometry.coordinates.map(c=>[c[1],c[0]]), { color:'#5bbbf5', weight:3, dashArray:'7,5', opacity:0.9 }).addTo(leafletMap);
+  w1.bindTooltip(`🚶 Walk to ${stopA.tags?.name||'Stop'}`);
+  const tLine = L.polyline([[stopA.lat,stopA.lon],[stopB.lat,stopB.lon]], { color:'#7c5cbf', weight:5, opacity:0.9 }).addTo(leafletMap);
+  tLine.bindTooltip('🚌 Transit');
+  const w2 = L.polyline(walkLeg2.geometry.coordinates.map(c=>[c[1],c[0]]), { color:'#5bbbf5', weight:3, dashArray:'7,5', opacity:0.9 }).addTo(leafletMap);
+  w2.bindTooltip(`🚶 Walk to ${dest.name}`);
+  layers.push(w1, tLine, w2);
+
+  const sm1 = L.marker([stopA.lat,stopA.lon],{icon:makePinIcon(`🚏 ${stopA.tags?.name||'Board'}`, '#7c5cbf','stop')}).addTo(leafletMap);
+  const sm2 = L.marker([stopB.lat,stopB.lon],{icon:makePinIcon(`🚏 ${stopB.tags?.name||'Alight'}`, '#7c5cbf','stop')}).addTo(leafletMap);
+  transitStopMarkers.push(sm1, sm2);
+  mapRouteLayer = layers;
+
+  const allPts = [...walkLeg1.geometry.coordinates.map(c=>[c[1],c[0]]), [stopA.lat,stopA.lon],[stopB.lat,stopB.lon], ...walkLeg2.geometry.coordinates.map(c=>[c[1],c[0]])];
+  leafletMap.fitBounds(L.latLngBounds(allPts), { padding:[30,30] });
+
+  const tDist = Math.hypot(stopB.lat-stopA.lat, stopB.lon-stopA.lon)*111000;
+  const totalDist = walkLeg1.distance + tDist + walkLeg2.distance;
+  const totalDur  = walkLeg1.duration + tDist/10 + walkLeg2.duration;
+  document.getElementById('routeDistance').textContent = formatDistance(totalDist);
+  document.getElementById('routeDuration').textContent = formatDuration(totalDur);
+
+  const legsEl = document.getElementById('routeLegs');
+  if (legsEl) legsEl.innerHTML = `
+    <div style="padding:8px 10px;background:rgba(91,187,245,0.08);border-radius:8px;border:1px solid rgba(91,187,245,0.25);font-size:11px">
+      <div style="font-weight:600;color:#5bbbf5;margin-bottom:2px">🚶 Walk to stop</div>
+      <div style="color:var(--text3);font-size:10px">${origin.name} → ${stopA.tags?.name||'Stop'}</div>
+      <div style="color:var(--text2)">${formatDistance(walkLeg1.distance)} · ${formatDuration(walkLeg1.duration)}</div>
+    </div>
+    <div style="padding:8px 10px;background:rgba(124,92,191,0.1);border-radius:8px;border:1px solid rgba(124,92,191,0.35);font-size:11px;margin-top:5px">
+      <div style="font-weight:600;color:var(--accent2);margin-bottom:2px">🚌 Transit</div>
+      <div style="color:var(--text3);font-size:10px">${stopA.tags?.name||'Stop'} → ${stopB.tags?.name||'Stop'}</div>
+      ${isBayArea ? '<div style="color:var(--accent);font-size:10px;margin-top:2px">📡 Bay Area: check BART · VTA departures below</div>' : ''}
+    </div>
+    <div style="padding:8px 10px;background:rgba(91,187,245,0.08);border-radius:8px;border:1px solid rgba(91,187,245,0.25);font-size:11px;margin-top:5px">
+      <div style="font-weight:600;color:#5bbbf5;margin-bottom:2px">🚶 Walk to destination</div>
+      <div style="color:var(--text3);font-size:10px">${stopB.tags?.name||'Stop'} → ${dest.name}</div>
+      <div style="color:var(--text2)">${formatDistance(walkLeg2.distance)} · ${formatDuration(walkLeg2.duration)}</div>
+    </div>`;
+
+  showToast(`✓ Transit route · ${formatDuration(totalDur)}`);
+  await loadTransitData({ coordinates: [[stopA.lon, stopA.lat]] }, stopA, stopB);
 }
 
-// ——— TRANSIT DATA (Overpass with route relations + Transitland) ———
+// ——— TRANSIT DATA// ——— TRANSIT DATA (Overpass with route relations + Transitland) ———
 async function loadTransitData(geometry, knownStop1, knownStop2) {
   const tp = document.getElementById('transitPanel');
   if (tp) tp.style.display = 'block';
@@ -3423,6 +3505,9 @@ function extractCandidatesFromText(text, query, category) {
 // ——— MAIN RESEARCH AGENT (bottom bar) ———
 let researchRunning = false;
 
+// ——— SEARCH CACHE (in-memory, avoids re-fetching same query) ———
+const _searchCache = new Map();
+
 async function runResearchAgent() {
   if (researchRunning) { showToast('Agent already running...'); return; }
 
@@ -3432,6 +3517,24 @@ async function runResearchAgent() {
   const priority = document.getElementById('researchPriority')?.value || 'balanced';
 
   if (!query) { showToast('Enter a research query first.'); return; }
+
+  const trip = trips[currentTripId];
+  const dest  = trip?.destination || '';
+  const cacheKey = `${query}|${category}|${dest}`;
+
+  // ——— Instant cache hit ———
+  if (_searchCache.has(cacheKey)) {
+    const cached = _searchCache.get(cacheKey);
+    const drawer = document.getElementById('researchResultsDrawer');
+    if (drawer) drawer.style.display = 'block';
+    let ranked = [...cached.ranked];
+    if (priority==='quality') ranked.sort((a,b)=>b.scores.ratingScore-a.scores.ratingScore);
+    else if (priority==='value') ranked.sort((a,b)=>b.scores.valueScore-a.scores.valueScore);
+    else if (priority==='popular') ranked.sort((a,b)=>b.scores.reviewScore-a.scores.reviewScore);
+    renderResearchResults(ranked, query, budget);
+    setResearchStatus(`✓ ${ranked.length} results · cached`);
+    return;
+  }
 
   researchRunning = true;
   documentStore.clear();
@@ -3445,45 +3548,41 @@ async function runResearchAgent() {
   if (resEl) resEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">⏳ Searching...</div>`;
   setResearchStatus('Running...');
 
-  const trip = trips[currentTripId];
-  const dest  = trip?.destination || '';
-  const t0    = Date.now();
+  const t0 = Date.now();
 
   try {
-    // ——— Source 1: Jina Reader on curated travel sites ———
-    const searchQueries = [
-      `best ${category === 'general' ? '' : category} ${query} ${dest} top rated reviewed 2025`,
-      `${query} ${dest} michelin recommended yelp reviews`,
-    ];
-
     const rawPages = [];
 
-    // Try Firecrawl first (premium, better results)
+    // ——— Firecrawl (fastest when key available) ———
     if (firecrawlKey) {
-      const fcResults = await toolFirecrawl(searchQueries[0]);
-      if (fcResults?.length) rawPages.push(...fcResults.slice(0,4));
+      const q1 = `best ${category === 'general' ? '' : category} ${query} ${dest} top rated 2025`;
+      const fcResults = await toolFirecrawl(q1);
+      if (fcResults?.length) rawPages.push(...fcResults.slice(0, 3));
     }
 
-    // Jina fallback — read from well-known travel sites directly
+    // ——— Parallel Jina fetches (faster than sequential) ———
     if (rawPages.length === 0) {
-      for (const q of searchQueries) {
-        const r = await toolJinaReader(
-          `https://www.bing.com/search?q=${encodeURIComponent(q)}&format=html`
-        );
-        if (r?.content) rawPages.push(r);
-        // Also try a direct Yelp search page
-        const yelpQ = encodeURIComponent(`${query} ${dest}`);
-        const yelpR = await toolJinaReader(`https://www.yelp.com/search?find_desc=${yelpQ}&find_loc=${encodeURIComponent(dest)}`);
-        if (yelpR?.content) rawPages.push(yelpR);
+      const q1 = encodeURIComponent(`best ${category === 'general' ? '' : category} ${query} ${dest} top rated reviewed 2025`);
+      const q2 = encodeURIComponent(`${query} ${dest} recommended`);
+      const yQ = encodeURIComponent(query + ' ' + dest);
+      const yL = encodeURIComponent(dest);
+
+      const [r1, r2, r3] = await Promise.allSettled([
+        toolJinaReader(`https://www.bing.com/search?q=${q1}&format=html`),
+        toolJinaReader(`https://www.yelp.com/search?find_desc=${yQ}&find_loc=${yL}`),
+        toolJinaReader(`https://www.bing.com/search?q=${q2}&format=html`),
+      ]);
+
+      for (const r of [r1, r2, r3]) {
+        if (r.status === 'fulfilled' && r.value?.content) rawPages.push(r.value);
       }
     }
 
-    // ——— Extract candidates from page content ———
+    // ——— Extract candidates ———
     const seen = new Set();
     for (const page of rawPages) {
       if (!page?.content) continue;
-      const extracted = extractCandidatesFromText(page.content, query, category);
-      for (const c of extracted) {
+      for (const c of extractCandidatesFromText(page.content, query, category)) {
         const key = c.name.toLowerCase().replace(/\s+/g,'');
         if (key.length < 3 || seen.has(key)) continue;
         seen.add(key);
@@ -3491,7 +3590,7 @@ async function runResearchAgent() {
       }
     }
 
-    // ——— Re-search if weak ———
+    // ——— Quick fallback if still empty ———
     if (documentStore.count() < 3) {
       const fallback = await toolJinaReader(
         `https://r.jina.ai/https://www.tripadvisor.com/Search?q=${encodeURIComponent(query+' '+dest)}`
@@ -3510,6 +3609,9 @@ async function runResearchAgent() {
     if (priority==='quality') ranked.sort((a,b)=>b.scores.ratingScore-a.scores.ratingScore);
     else if (priority==='value') ranked.sort((a,b)=>b.scores.valueScore-a.scores.valueScore);
     else if (priority==='popular') ranked.sort((a,b)=>b.scores.reviewScore-a.scores.reviewScore);
+
+    // Cache the results
+    if (ranked.length > 0) _searchCache.set(cacheKey, { ranked: ranked.map(r => ({...r})) });
 
     const elapsed = ((Date.now()-t0)/1000).toFixed(1);
     setResearchStatus(`✓ ${ranked.length} results · ${elapsed}s`);
@@ -4028,8 +4130,9 @@ function renderDiscoverCards(ranked, location, category) {
       : '';
 
     const safeName = c.name.replace(/'/g, "\\'");
+    const placeData = encodeURIComponent(JSON.stringify({...c, _isTop: isTop}));
 
-    return `<div class="place-card" style="${isTop ? 'border-color:rgba(232,184,75,0.4);' : ''}">
+    return `<div class="place-card" style="${isTop ? 'border-color:rgba(232,184,75,0.4);' : ''}cursor:pointer" onclick="openPlaceDetail(JSON.parse(decodeURIComponent('${placeData}')), '${category}')">
       <div class="place-thumb" style="background:var(--surface2);font-size:38px;display:flex;align-items:center;justify-content:center;position:relative">
         ${em}
         ${isTop ? '<div style="position:absolute;top:6px;left:6px;font-size:16px">🏆</div>' : ''}
@@ -4044,12 +4147,10 @@ function renderDiscoverCards(ranked, location, category) {
         </div>` : ''}
         ${awards}
         ${c.features?.length ? `<div class="place-tags" style="margin-bottom:5px">${c.features.slice(0,3).map(f=>`<span class="ptag">${f}</span>`).join('')}</div>` : ''}
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          ${price}
-        </div>
-        ${descText ? `<div class="place-desc" style="font-size:11px;color:var(--text3)">${descText.slice(0,100)}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">${price}</div>
+        ${descText ? `<div class="place-desc" style="font-size:11px;color:var(--text3)">${descText.slice(0,90)}</div>` : ''}
         ${c.address ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">📍 ${c.address}</div>` : ''}
-        <div class="place-actions" style="margin-top:8px">
+        <div class="place-actions" style="margin-top:8px" onclick="event.stopPropagation()">
           <button class="place-btn" onclick="showOnMap('${safeName}')">📍 Map</button>
           <button class="place-btn" onclick="askAIAbout('${safeName}')">✦ AI</button>
           <button class="place-btn add" onclick="quickAddToItinerary('${safeName}','${category}')">+ Add</button>
@@ -4067,6 +4168,97 @@ function quickAddToItinerary(name, type) {
     if(t) t.value={restaurant:'food',cafe:'food',bar:'food',bakery:'food',attraction:'attraction',museum:'attraction'}[type]||'attraction';
   },50);
   showToast('Pre-filled — pick a day to save.');
+}
+
+// ——— PLACE DETAIL MODAL ———
+function openPlaceDetail(c, category) {
+  const pL = {1:'$', 2:'$$', 3:'$$$', 4:'$$$$'};
+  const pC = {1:'var(--green)', 2:'var(--teal)', 3:'var(--gold)', 4:'var(--coral)'};
+
+  const overlay = document.getElementById('placeDetail-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+
+  // Emoji
+  function placeEmoji(c) {
+    const desc = (c.description || '').toLowerCase();
+    if (desc.includes('ramen') || desc.includes('noodle')) return '🍜';
+    if (desc.includes('sushi') || desc.includes('japanese')) return '🍣';
+    if (desc.includes('pizza') || desc.includes('italian')) return '🍕';
+    if (desc.includes('cafe') || desc.includes('coffee')) return '☕';
+    if (desc.includes('bakery') || desc.includes('pastry')) return '🥐';
+    if (desc.includes('bar') || desc.includes('pub')) return '🍺';
+    if (desc.includes('museum') || desc.includes('gallery')) return '🖼️';
+    if (desc.includes('park') || desc.includes('garden')) return '🌿';
+    if (desc.includes('castle') || desc.includes('tower')) return '🏰';
+    const catMap = {restaurant:'🍽️', cafe:'☕', bar:'🍷', bakery:'🥐', museum:'🖼️', attraction:'🏛️'};
+    return catMap[category] || '📍';
+  }
+
+  document.getElementById('placeDetailEmoji').textContent = placeEmoji(c);
+
+  // Top badge
+  const topBadge = document.getElementById('placeDetailTopBadge');
+  if (topBadge) topBadge.style.display = c._isTop ? 'block' : 'none';
+
+  // Name
+  document.getElementById('placeDetailName').textContent = c.name;
+
+  // Meta row (type + source)
+  const typeLabel = {restaurant:'Restaurant', cafe:'Café', bar:'Bar / Pub', bakery:'Bakery', museum:'Museum', attraction:'Attraction'}[category] || c.description?.split('·')[0] || '';
+  document.getElementById('placeDetailMeta').innerHTML = [
+    typeLabel,
+    c.source === 'OpenStreetMap' ? '<span style="color:var(--text3)">· via OpenStreetMap</span>' : '',
+  ].filter(Boolean).join(' ');
+
+  // Price
+  const priceEl = document.getElementById('placeDetailPrice');
+  priceEl.textContent = c.priceRange || (c.priceTier ? pL[c.priceTier] : '');
+  priceEl.style.color = c.priceTier ? pC[c.priceTier] : 'var(--text3)';
+
+  // Stars
+  const starsEl = document.getElementById('placeDetailStars');
+  if (c.rating) {
+    const filled = '★'.repeat(Math.min(5, Math.round(c.rating)));
+    const empty  = '☆'.repeat(Math.max(0, 5 - Math.round(c.rating)));
+    starsEl.innerHTML = `<span style="color:var(--gold);font-size:16px">${filled}${empty}</span> <span style="font-size:14px;font-weight:700;color:var(--text)">${c.rating.toFixed(1)}</span><span style="font-size:11px;color:var(--text3);margin-left:5px">/ 5.0</span>`;
+  } else {
+    starsEl.innerHTML = '';
+  }
+
+  // Awards
+  const awardsEl = document.getElementById('placeDetailAwards');
+  awardsEl.innerHTML = (c.awards?.length || c.michelinStars >= 1)
+    ? (c.awards||[]).map(a => `<span style="padding:3px 9px;background:rgba(232,184,75,0.12);border:1px solid rgba(232,184,75,0.3);border-radius:8px;font-size:11px;color:var(--gold);font-weight:700;display:inline-block;margin:2px 2px 2px 0">${a}</span>`).join('')
+    : '';
+
+  // Description
+  const descEl = document.getElementById('placeDetailDesc');
+  descEl.textContent = c.description ? (c.description.charAt(0).toUpperCase() + c.description.slice(1)) : 'No description available.';
+
+  // Features
+  const featEl = document.getElementById('placeDetailFeatures');
+  featEl.innerHTML = (c.features||[]).map(f => `<span style="padding:4px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;font-size:11px;color:var(--text2)">${f}</span>`).join('');
+
+  // Info (address, hours, website)
+  const infoEl = document.getElementById('placeDetailInfo');
+  const infoLines = [];
+  if (c.address)        infoLines.push(`<div>📍 <span style="color:var(--text)">${c.address}</span></div>`);
+  if (c.openingHours)   infoLines.push(`<div>🕐 <span style="color:var(--text)">${c.openingHours}</span></div>`);
+  if (c.website)        infoLines.push(`<div>🌐 <a href="${c.website}" style="color:var(--accent)">${c.website.replace(/^https?:\/\//,'').slice(0,40)}</a></div>`);
+  if (c.lat && c.lng)   infoLines.push(`<div style="color:var(--text3);font-size:10px">📌 ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</div>`);
+  infoEl.innerHTML = infoLines.join('');
+
+  // Action buttons
+  const safeName = c.name.replace(/'/g, "\\'");
+  document.getElementById('placeDetailMapBtn').onclick = () => { closePlaceDetail(); showOnMap(safeName); };
+  document.getElementById('placeDetailAddBtn').onclick = () => { closePlaceDetail(); quickAddToItinerary(safeName, category); };
+  document.getElementById('placeDetailAIBtn').onclick  = () => { closePlaceDetail(); askAIAbout(safeName); };
+}
+
+function closePlaceDetail() {
+  const overlay = document.getElementById('placeDetail-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function renderStaticPlaces(category) {
@@ -4118,7 +4310,40 @@ requestIdleCallback(() => {
 setTimeout(refreshHeroLiveData, 1500);
 </script>
 
-<!-- Custom confirm modal (replaces window.confirm which crashes WebView2) -->
+<!-- ═══ PLACE DETAIL MODAL ═══ -->
+<div id="placeDetail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(3px)"
+  onclick="if(event.target===this)closePlaceDetail()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:min(540px,94vw);max-height:86vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column">
+    <!-- Header image/emoji area -->
+    <div id="placeDetailHero" style="height:130px;background:linear-gradient(135deg,#1a2540,#2a1e40);border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:center;font-size:64px;position:relative;flex-shrink:0">
+      <div id="placeDetailEmoji">📍</div>
+      <div id="placeDetailTopBadge" style="position:absolute;top:10px;left:10px;display:none">
+        <span style="font-size:9px;padding:3px 8px;background:var(--gold);color:#000;border-radius:8px;font-weight:800">TOP PICK</span>
+      </div>
+      <button onclick="closePlaceDetail()" style="position:absolute;top:10px;right:12px;background:rgba(0,0,0,0.4);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <!-- Content -->
+    <div style="padding:20px 22px 24px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <div>
+          <div id="placeDetailName" style="font-size:20px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:4px"></div>
+          <div id="placeDetailMeta" style="font-size:12px;color:var(--text2)"></div>
+        </div>
+        <div id="placeDetailPrice" style="font-size:16px;font-weight:700;flex-shrink:0"></div>
+      </div>
+      <div id="placeDetailStars" style="margin-bottom:10px"></div>
+      <div id="placeDetailAwards" style="margin-bottom:10px"></div>
+      <div id="placeDetailDesc" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px"></div>
+      <div id="placeDetailFeatures" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+      <div id="placeDetailInfo" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;font-size:12px;color:var(--text2)"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="placeDetailMapBtn" class="btn-sm primary" onclick="" style="flex:1;min-width:100px">📍 Show on Map</button>
+        <button id="placeDetailAddBtn" class="btn-sm" onclick="" style="flex:1;min-width:100px">+ Add to Itinerary</button>
+        <button id="placeDetailAIBtn" class="btn-sm" onclick="" style="flex:1;min-width:100px">✦ Ask AI</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="_voy_confirm_overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#1a2035;border:1px solid #2a3a55;border-radius:12px;padding:28px 32px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)">
     <div id="_voy_confirm_title" style="font-size:16px;font-weight:600;color:#e8f4fd;margin-bottom:8px"></div>
