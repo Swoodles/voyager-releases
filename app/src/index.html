@@ -490,6 +490,7 @@
     <div class="nav-item" onclick="showPanel('itinerary', this)"><span class="nav-icon">📅</span> Itinerary</div>
     <div class="nav-item" onclick="showPanel('map', this)"><span class="nav-icon">🗺️</span> Map & Routes</div>
     <div class="nav-item" onclick="showPanel('discover', this)"><span class="nav-icon">🔍</span> Discover</div>
+    <div class="nav-item" onclick="showPanel('events', this)"><span class="nav-icon">🎟️</span> Events</div>
   </div>
   <div class="nav-section" style="margin-top:8px">
     <div class="nav-label">Manage</div>
@@ -807,6 +808,37 @@
       </div>
 
       <div class="place-grid" id="placeGrid"></div>
+    </div>
+
+    <!-- EVENTS PANEL -->
+    <div id="panel-events" class="panel">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius)">
+        <span style="font-size:14px">📍</span>
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap">Events in:</span>
+        <input type="text" id="eventsLocation" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;font-family:inherit" placeholder="City or region..." onkeydown="if(event.key==='Enter')searchEvents()">
+        <select id="eventsTimeframe" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;cursor:pointer">
+          <option value="this week">This week</option>
+          <option value="this month" selected>This month</option>
+          <option value="next 3 months">Next 3 months</option>
+          <option value="this year">This year</option>
+        </select>
+        <button class="btn-sm primary" onclick="searchEvents()" style="white-space:nowrap">🔍 Search</button>
+        <button class="btn-sm" onclick="resetEventsLocation()" style="white-space:nowrap">↺ Trip</button>
+      </div>
+      <div class="filter-bar" style="margin-bottom:12px">
+        <div class="filter-chip active" onclick="filterEventsCat(this,'all')">All</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'convention')">🎪 Conventions</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'festival')">🎉 Festivals</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'sports')">🏆 Sports</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'music')">🎵 Music</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'food')">🍽️ Food & Drink</div>
+        <div class="filter-chip" onclick="filterEventsCat(this,'exhibition')">🖼️ Exhibitions</div>
+      </div>
+      <div id="eventsAgentStatus" style="display:none;align-items:center;gap:8px;padding:8px 12px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--accent)">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite"></div>
+        <span id="eventsAgentStatusText">Searching for events...</span>
+      </div>
+      <div id="eventsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>
     </div>
 
     <!-- VAULT PANEL -->
@@ -1501,7 +1533,7 @@ function showPanel(name, el) {
   document.getElementById('panel-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
-  const titles = {overview:'Overview', itinerary:'Itinerary', map:'Map & Routes', discover:'Discover Places', vault:'Documents & Tickets', budget:'Budget Tracker', packing:'Packing List'};
+  const titles = {overview:'Overview', itinerary:'Itinerary', map:'Map & Routes', discover:'Discover Places', events:'Events Near You', vault:'Documents & Tickets', budget:'Budget Tracker', packing:'Packing List'};
   document.getElementById('panelTitle').textContent = titles[name] || name;
   document.getElementById('aiResponse').classList.remove('visible');
   if (name === 'map') {
@@ -1517,6 +1549,7 @@ function showPanel(name, el) {
   if (name === 'packing')   renderPacking();
   if (name === 'budget')    renderBudget();
   if (name === 'discover')  openDiscoverPanel();
+  if (name === 'events')    openEventsPanel();
 }
 
 // ——— MODAL ———
@@ -1979,7 +2012,10 @@ function renderItinerary() {
         <span class="day-badge">Day ${day.dayNum}</span>
         <span class="day-date">${day.date}</span>
         ${day.budget ? `<span class="day-budget">${day.budget}</span>` : ''}
-        <button onclick="removeDay(${di})" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='var(--coral)'" onmouseout="this.style.color='var(--text3)'">✕ day</button>
+        <div style="margin-left:auto;display:flex;gap:5px;align-items:center">
+          ${day.events.length >= 2 ? `<button onclick="sendDayToRoute(${di})" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:var(--accent);cursor:pointer;font-size:10px;padding:3px 8px;border-radius:6px;font-family:inherit;font-weight:600;transition:all 0.15s" title="Send all locations from this day to the route planner" onmouseover="this.style.background='rgba(79,142,247,0.3)'" onmouseout="this.style.background='rgba(79,142,247,0.15)'">🗺️ Route</button>` : ''}
+          <button onclick="removeDay(${di})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='var(--coral)'" onmouseout="this.style.color='var(--text3)'">✕ day</button>
+        </div>
       </div>
       <div class="timeline">
         ${day.events.map((ev, ei) => `
@@ -2047,6 +2083,48 @@ function removeEvent(di, ei) {
     data.days.forEach((d, i) => d.dayNum = i + 1);
   }
   renderItinerary(); updateOverview(); save();
+}
+
+// ——— SEND DAY TO ROUTE ———
+async function sendDayToRoute(di) {
+  const data = cd();
+  const day  = data.days[di];
+  if (!day || day.events.length < 2) { showToast('Need at least 2 events with locations.'); return; }
+
+  showToast('⏳ Geocoding itinerary locations...');
+  const trip = trips[currentTripId];
+  const dest = trip?.destination || '';
+
+  // Geocode each event name
+  const stops = [];
+  for (const ev of day.events) {
+    try {
+      const query = dest ? `${ev.name}, ${dest}` : ev.name;
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, { headers:{'Accept-Language':'en'} });
+      const d = await r.json();
+      if (d.length > 0) stops.push({ name: ev.name, lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) });
+    } catch(e) {}
+  }
+
+  if (stops.length < 2) { showToast('Could not locate enough events. Try adding hotel address to event names.'); return; }
+
+  // Navigate to map panel and populate stops
+  const mapNavItem = document.querySelectorAll('.nav-item')[2];
+  showPanel('map', mapNavItem);
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  mapNavItem.classList.add('active');
+  if (!leafletMap) initMap();
+
+  routeStops = stops;
+  renderRouteStops();
+  showToast(`✓ ${stops.length} stops loaded for Day ${day.dayNum} — hit Calculate Route!`);
+  setTimeout(() => {
+    if (leafletMap && stops.length) {
+      const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
+      leafletMap.fitBounds(bounds, { padding: [40, 40] });
+      stops.forEach((s, i) => addMapMarker(s.lat, s.lng, `${i+1}. ${s.name}`));
+    }
+  }, 200);
 }
 
 // ——— MAP (CartoDB tiles + OSRM real routing + Transitland transit) ———
@@ -2293,71 +2371,91 @@ async function optimizeRoute() {
     return;
   }
 
-  const osrmProfile = OSRM_PROFILE[routeTransportMode] || 'foot';
-  const valhallaCosting = { walking:'pedestrian', cycling:'bicycle', driving:'auto' }[routeTransportMode] || 'pedestrian';
-  const coordStr = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
-  const extras = (routeTransportMode === 'walking' || routeTransportMode === 'cycling') ? '&exclude=motorway' : '';
-
   showToast('⏳ Calculating route...');
 
-  // Try OSRM primary → OSRM fallback → Valhalla
+  const osrmProfile = { walking:'foot', cycling:'cycling', driving:'car' }[routeTransportMode] || 'foot';
+  const orsProfile  = { walking:'foot-walking', cycling:'cycling-regular', driving:'driving-car' }[routeTransportMode] || 'foot-walking';
+  const coordStr    = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
+
   let latlngs = null, totalDist = 0, totalDur = 0, legs = [];
 
-  // OSRM attempt
-  const osrmUrls = [
-    `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
-    `https://routing.openstreetmap.de/routed-${osrmProfile === 'foot' ? 'foot' : osrmProfile === 'bike' ? 'bike' : 'car'}/route/v1/${osrmProfile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
-  ];
-  for (const url of osrmUrls) {
-    try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!resp.ok) continue;
+  // ——— Attempt 1: OpenRouteService (free public, CORS-friendly) ———
+  try {
+    const body = {
+      coordinates: routeStops.map(s => [s.lng, s.lat]),
+    };
+    const resp = await fetchWithTimeout(
+      `https://api.openrouteservice.org/v2/directions/${orsProfile}/geojson`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': '5b3ce3597851110001cf6248a2e09d2ab2e64ade985f6a37b4b77c93' },
+        body: JSON.stringify(body),
+      }, 12000
+    );
+    if (resp.ok) {
       const json = await resp.json();
-      if (json.code === 'Ok' && json.routes?.length) {
-        const route = json.routes[0];
-        latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
-        totalDist = route.distance; totalDur = route.duration;
-        legs = route.legs || [];
-        break;
+      const feat = json.features?.[0];
+      if (feat?.geometry?.coordinates?.length) {
+        latlngs   = feat.geometry.coordinates.map(c => [c[1], c[0]]);
+        totalDist = feat.properties?.summary?.distance || 0;
+        totalDur  = feat.properties?.summary?.duration || 0;
+        legs      = (feat.properties?.segments || []).map((seg, i) => ({
+          distance: seg.distance, duration: seg.duration,
+        }));
       }
-    } catch(e) { continue; }
-  }
+    }
+  } catch(e) {}
 
-  // Valhalla fallback
+  // ——— Attempt 2: OSRM router.project-osrm.org ———
   if (!latlngs) {
     try {
+      const extras = (routeTransportMode !== 'driving') ? '&exclude=motorway' : '';
+      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordStr}?overview=full&geometries=geojson${extras}`;
+      const resp = await fetchWithTimeout(url, {}, 10000);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.code === 'Ok' && json.routes?.length) {
+          const route = json.routes[0];
+          latlngs   = route.geometry.coordinates.map(c => [c[1], c[0]]);
+          totalDist = route.distance;
+          totalDur  = route.duration;
+          legs      = route.legs || [];
+        }
+      }
+    } catch(e) {}
+  }
+
+  // ——— Attempt 3: Valhalla ———
+  if (!latlngs) {
+    try {
+      const valCosting = { walking:'pedestrian', cycling:'bicycle', driving:'auto' }[routeTransportMode] || 'pedestrian';
       const body = {
         locations: routeStops.map(s => ({ lat: s.lat, lon: s.lng })),
-        costing: valhallaCosting,
-        shape_format: 'geojson',
+        costing: valCosting,
         directions_options: { units: 'kilometers' },
       };
-      const resp = await fetch('https://valhalla1.openstreetmap.de/route', {
+      const resp = await fetchWithTimeout('https://valhalla1.openstreetmap.de/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(12000),
-      });
+      }, 12000);
       if (resp.ok) {
         const json = await resp.json();
-        const trip = json.trip;
-        if (trip?.legs?.length) {
-          latlngs = trip.legs.flatMap(leg =>
-            (leg.shape || []).map(pt => [pt[0], pt[1]])
-          );
-          if (!latlngs.length && trip.legs[0]?.shape) {
-            latlngs = trip.legs[0].shape;
-          }
-          totalDist = (trip.summary?.length || 0) * 1000;
-          totalDur  = trip.summary?.time || 0;
-          legs = trip.legs.map((leg, i) => ({ distance: leg.summary.length * 1000, duration: leg.summary.time }));
+        if (json.trip?.legs?.length) {
+          // Valhalla returns encoded polyline per leg
+          latlngs = json.trip.legs.flatMap(leg => {
+            try { return decodePolyline(leg.shape || ''); } catch(e) { return []; }
+          });
+          totalDist = (json.trip.summary?.length || 0) * 1000;
+          totalDur  = json.trip.summary?.time || 0;
+          legs = json.trip.legs.map(l => ({ distance: l.summary.length * 1000, duration: l.summary.time }));
         }
       }
     } catch(e) {}
   }
 
   if (!latlngs || latlngs.length < 2) {
-    showToast('Routing error — could not find a route. Try different stops.');
+    showToast('Routing error — could not calculate route. Check your connection.');
     return;
   }
 
@@ -2368,23 +2466,30 @@ async function optimizeRoute() {
   leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
 
   document.getElementById('routeDistance').textContent = formatDistance(totalDist);
-  document.getElementById('routeDuration').textContent = formatDuration(totalDur);
+  document.getElementById('routeDuration').textContent  = formatDuration(totalDur);
 
   const legsEl = document.getElementById('routeLegs');
   if (legsEl && legs.length) {
     legsEl.innerHTML = legs.map((leg, i) => `
       <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:11px">
-        <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i]?.name || ''} → ${routeStops[i+1]?.name || ''}</div>
+        <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i]?.name||''} → ${routeStops[i+1]?.name||''}</div>
         <div style="color:var(--text3)">${formatDistance(leg.distance)} · ${formatDuration(leg.duration)}</div>
       </div>`).join('');
   }
-
   showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(totalDist)}, ${formatDuration(totalDur)}`);
 
   } catch(err) {
     showToast('Routing error — check your connection.');
     console.error(err);
   }
+}
+
+// Helper: fetch with manual timeout (compatible with all WebView2 versions)
+function fetchWithTimeout(url, options, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    fetch(url, options).then(r => { clearTimeout(timer); resolve(r); }).catch(e => { clearTimeout(timer); reject(e); });
+  });
 }
 
 // ——— POLYLINE DECODER (for Transitous/OTP responses) ———
@@ -2412,14 +2517,14 @@ async function optimizeTransitRoute() {
   const tp = document.getElementById('transitPanel');
   if (tp) tp.style.display = 'block';
 
-  // ——— Step 1: Try Transitous (real GTFS routing — works for Europe + growing globally) ———
+  // ——— Step 1: Try Transitous (real GTFS routing) ———
   let itinerary = null;
   try {
     const url = `https://api.transitous.org/plan` +
       `?fromPlace=${origin.lat},${origin.lng}` +
       `&toPlace=${dest.lat},${dest.lng}` +
       `&mode=TRANSIT,WALK&numItineraries=1&locale=en`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(14000) });
+    const r = await fetchWithTimeout(url, {}, 14000);
     if (r.ok) {
       const json = await r.json();
       itinerary = json.plan?.itineraries?.[0] || null;
@@ -2515,7 +2620,7 @@ async function optimizeTransitRoute() {
   async function findNearestStop(lat, lng) {
     const q = `[out:json][timeout:12];(node["public_transport"="stop_position"][name](around:800,${lat},${lng});node["highway"="bus_stop"][name](around:800,${lat},${lng});node["railway"~"station|halt|tram_stop"][name](around:800,${lat},${lng}););out body 10;`;
     try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body:'data='+encodeURIComponent(q), signal: AbortSignal.timeout(10000) });
+      const r = await fetchWithTimeout('https://overpass-api.de/api/interpreter', { method:'POST', body:'data='+encodeURIComponent(q) }, 10000);
       const json = await r.json();
       const stops = (json.elements||[]).filter(e=>e.lat&&e.lon).sort((a,b)=>Math.hypot(a.lat-lat,a.lon-lng)-Math.hypot(b.lat-lat,b.lon-lng));
       return stops[0] || null;
@@ -2524,7 +2629,7 @@ async function optimizeTransitRoute() {
 
   async function osrmWalk(fromLat, fromLng, toLat, toLng) {
     try {
-      const r = await fetch(`https://router.project-osrm.org/route/v1/foot/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(9000) });
+      const r = await fetchWithTimeout(`https://router.project-osrm.org/route/v1/foot/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`, {}, 9000);
       const j = await r.json();
       if (j.code==='Ok') return j.routes[0];
     } catch(e) {}
@@ -3162,8 +3267,24 @@ function reScoreResults() {
 }
 
 // ——— CLEAR RESEARCH ———
+function setResearchStatus(msg) {
+  const el = document.getElementById('researchStatus');
+  if (el) el.textContent = msg;
+}
+
+function toggleResearchParams() {
+  const panel = document.getElementById('researchParamsPanel');
+  const btn   = document.getElementById('researchParamsBtn');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (btn) btn.style.background = isOpen ? 'var(--surface2)' : 'var(--surface3)';
+  if (btn) btn.style.color      = isOpen ? 'var(--text2)'    : 'var(--accent)';
+}
+
 function clearResearch() {
   documentStore.clear();
+  _searchCache.clear();
   const qEl = document.getElementById('researchQuery');
   if (qEl) qEl.value = '';
   const rEl = document.getElementById('researchResults');
@@ -4068,6 +4189,7 @@ out body center 40;`;
 
     if (ranked.length > 0) {
       renderDiscoverCards(ranked, location, category);
+      setTimeout(enrichDiscoverPhotos, 100);
       if (statusTxt) statusTxt.textContent = `✓ ${ranked.length} places in ${location.split(',')[0]}`;
       setTimeout(() => { if (statusBar) statusBar.style.display = 'none'; }, 2500);
     } else {
@@ -4132,10 +4254,10 @@ function renderDiscoverCards(ranked, location, category) {
     const safeName = c.name.replace(/'/g, "\\'");
     const placeData = encodeURIComponent(JSON.stringify({...c, _isTop: isTop}));
 
-    return `<div class="place-card" style="${isTop ? 'border-color:rgba(232,184,75,0.4);' : ''}cursor:pointer" onclick="openPlaceDetail(JSON.parse(decodeURIComponent('${placeData}')), '${category}')">
-      <div class="place-thumb" style="background:var(--surface2);font-size:38px;display:flex;align-items:center;justify-content:center;position:relative">
-        ${em}
-        ${isTop ? '<div style="position:absolute;top:6px;left:6px;font-size:16px">🏆</div>' : ''}
+    return `<div class="place-card" style="${isTop ? 'border-color:rgba(232,184,75,0.4);' : ''}cursor:pointer" data-name="${c.name.replace(/"/g,'&quot;')}" data-lat="${c.lat||''}" data-lng="${c.lng||''}" onclick="openPlaceDetail(JSON.parse(decodeURIComponent('${placeData}')), '${category}')">
+      <div class="place-thumb" style="background:var(--surface2);font-size:38px;display:flex;align-items:center;justify-content:center;position:relative;min-height:100px">
+        <span style="position:relative;z-index:1">${em}</span>
+        ${isTop ? '<div style="position:absolute;top:6px;left:6px;font-size:16px;z-index:2">🏆</div>' : ''}
       </div>
       <div class="place-body">
         <div class="place-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">
@@ -4293,6 +4415,278 @@ function renderStaticPlaces(category) {
     </div>`).join('');
 }
 
+
+// ——— PLACE PHOTO (Jina → Bing Image Search, Wikimedia fallback) ———
+const _photoCache = new Map();
+async function fetchPlacePhoto(name, lat, lng) {
+  const key = name.toLowerCase().replace(/\s+/g,'').slice(0, 25);
+  if (_photoCache.has(key)) return _photoCache.get(key);
+
+  // Helper: pull first usable image URL from raw text
+  function extractImageUrl(text) {
+    if (!text) return null;
+    // Look for direct image URLs in the page content
+    const patterns = [
+      /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/gi,
+    ];
+    for (const re of patterns) {
+      const matches = [...text.matchAll(re)];
+      for (const m of matches) {
+        const url = m[0];
+        // Skip tiny icons, tracking pixels, logos
+        if (/icon|logo|pixel|1x1|favicon|placeholder|blank|spacer|thumb\/\d{1,2}[^0-9]/i.test(url)) continue;
+        if (url.length > 300) continue;
+        return url;
+      }
+    }
+    return null;
+  }
+
+  let url = null;
+
+  // ——— Attempt 1: Jina → Bing Image Search ———
+  try {
+    const q = encodeURIComponent(`${name} place photo`);
+    const jinaUrl = `https://r.jina.ai/https://www.bing.com/images/search?q=${q}&form=HDRSC2&first=1`;
+    const r = await fetchWithTimeout(jinaUrl, {
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown', 'X-Timeout': '8' },
+    }, 9000);
+    if (r.ok) {
+      const text = await r.text();
+      url = extractImageUrl(text);
+    }
+  } catch(e) {}
+
+  // ——— Attempt 2: Wikimedia Commons fallback ———
+  if (!url) {
+    try {
+      const term = encodeURIComponent(name.split(',')[0].trim());
+      const r = await fetchWithTimeout(
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${term}&gsrlimit=3&prop=imageinfo&iiprop=url&format=json&origin=*`,
+        {}, 5000
+      );
+      if (r.ok) {
+        const d = await r.json();
+        const pages = Object.values(d.query?.pages || {});
+        const img = pages.find(p => /\.(jpg|jpeg|png)$/i.test(p.imageinfo?.[0]?.url || ''));
+        if (img) url = img.imageinfo[0].url;
+      }
+    } catch(e) {}
+  }
+
+  _photoCache.set(key, url);
+  return url;
+}
+
+// Enrich discover cards with photos after render
+async function enrichDiscoverPhotos() {
+  const cards = document.querySelectorAll('.place-card[data-name]');
+  for (const card of cards) {
+    const name = card.dataset.name;
+    const lat  = parseFloat(card.dataset.lat || '0');
+    const lng  = parseFloat(card.dataset.lng || '0');
+    const thumb = card.querySelector('.place-thumb');
+    if (!thumb || thumb.dataset.loaded) continue;
+    const url = await fetchPlacePhoto(name, lat, lng);
+    if (url) {
+      thumb.style.backgroundImage = `url('${url}')`;
+      thumb.style.backgroundSize  = 'cover';
+      thumb.style.backgroundPosition = 'center';
+      thumb.style.fontSize = '0';
+      thumb.dataset.loaded = '1';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— EVENTS PANEL ———
+// ═══════════════════════════════════════════════════════
+let eventsCurrentCategory = 'all';
+let eventsRunning = false;
+let _eventsCache = new Map();
+
+function openEventsPanel() {
+  const trip = trips[currentTripId];
+  const dest = trip?.destination || '';
+  const locEl = document.getElementById('eventsLocation');
+  if (locEl && !locEl.value && dest) locEl.value = dest.split(',')[0].trim();
+  const grid = document.getElementById('eventsGrid');
+  if (!grid?.children.length) searchEvents();
+}
+
+function resetEventsLocation() {
+  const trip = trips[currentTripId];
+  const locEl = document.getElementById('eventsLocation');
+  if (locEl && trip?.destination) locEl.value = trip.destination.split(',')[0].trim();
+  searchEvents();
+}
+
+function filterEventsCat(el, cat) {
+  document.querySelectorAll('#panel-events .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  eventsCurrentCategory = cat;
+  searchEvents();
+}
+
+async function searchEvents() {
+  if (eventsRunning) return;
+  const loc      = document.getElementById('eventsLocation')?.value.trim() || '';
+  const timeframe= document.getElementById('eventsTimeframe')?.value || 'this month';
+  const cat      = eventsCurrentCategory;
+  if (!loc) { showToast('Enter a city to search events.'); return; }
+
+  const cacheKey = `${loc}|${cat}|${timeframe}`;
+  const grid     = document.getElementById('eventsGrid');
+  const statusEl = document.getElementById('eventsAgentStatus');
+  const statusTx = document.getElementById('eventsAgentStatusText');
+
+  // Cache hit
+  if (_eventsCache.has(cacheKey)) {
+    if (grid) grid.innerHTML = _eventsCache.get(cacheKey);
+    return;
+  }
+
+  eventsRunning = true;
+  if (statusEl) { statusEl.style.display='flex'; }
+  if (statusTx) statusTx.textContent = `Searching for events in ${loc}...`;
+  if (grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3)"><div style="font-size:30px;margin-bottom:8px">🎟️</div><div style="font-size:13px">Finding events in ${loc}...</div></div>`;
+
+  const catQuery = {
+    convention: 'convention expo trade show conference',
+    festival:   'festival fair celebration',
+    sports:     'sports game match tournament championship',
+    music:      'concert music festival show performance',
+    food:       'food festival wine beer market culinary',
+    exhibition: 'exhibition art gallery museum show',
+    all:        'events shows conventions festivals concerts',
+  }[cat] || 'events';
+
+  try {
+    // Run Bing + Jina in parallel for speed
+    const q1 = encodeURIComponent(`${catQuery} ${loc} ${timeframe} 2025 2026`);
+    const q2 = encodeURIComponent(`upcoming events ${loc} ${timeframe}`);
+
+    const [r1, r2] = await Promise.allSettled([
+      toolJinaReader(`https://www.bing.com/search?q=${q1}&format=html`),
+      toolJinaReader(`https://www.bing.com/search?q=${q2}&format=html`),
+    ]);
+
+    const pages = [r1, r2].filter(r => r.status==='fulfilled' && r.value?.content).map(r => r.value);
+    const events = [];
+    const seen   = new Set();
+
+    for (const page of pages) {
+      const extracted = extractEventsFromText(page.content, loc, cat);
+      for (const ev of extracted) {
+        const key = ev.name.toLowerCase().replace(/\s+/g,'').slice(0,20);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        events.push(ev);
+      }
+    }
+
+    renderEventCards(events, loc);
+    const html = grid?.innerHTML || '';
+    if (events.length > 0) _eventsCache.set(cacheKey, html);
+
+  } catch(err) {
+    if (grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3);font-size:13px">⚠ Could not fetch events. Check your connection.</div>`;
+  } finally {
+    eventsRunning = false;
+    if (statusEl) statusEl.style.display = 'none';
+  }
+}
+
+function extractEventsFromText(text, loc, cat) {
+  if (!text || text.length < 50) return [];
+  const events = [];
+  const catKeywords = {
+    convention: ['convention','expo','trade show','conference','summit','forum','symposium'],
+    festival:   ['festival','fair','carnival','celebration','parade'],
+    sports:     ['game','match','tournament','championship','race','grand prix','open'],
+    music:      ['concert','tour','performance','gig','show','live music'],
+    food:       ['food festival','wine','beer fest','market','culinary','tasting'],
+    exhibition: ['exhibition','exhibit','gallery','museum','art show','display'],
+    all:        [],
+  };
+  const keywords = catKeywords[cat] || [];
+
+  // Date patterns
+  const dateRe = /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:\s*[-–]\s*(?:\d{1,2}(?:st|nd|rd|th)?)?(?:,?\s*\d{4})?)?/gi;
+
+  // Headline pattern: numbered/bulleted or heading-like
+  const lines = text.split('\n').filter(l => l.trim().length > 5);
+  for (let i = 0; i < lines.length && events.length < 12; i++) {
+    const line = lines[i].trim();
+    if (line.length < 6 || line.length > 200) continue;
+    // Skip nav/ui junk
+    if (/^(home|menu|search|login|sign|cookie|privacy|terms|share|back|next)/i.test(line)) continue;
+    if (/https?:\/\//.test(line)) continue;
+
+    const isRelevant = keywords.length === 0 || keywords.some(k => line.toLowerCase().includes(k));
+    const hasCapital = /^[A-Z\d]/.test(line);
+    if (!isRelevant || !hasCapital) continue;
+
+    // Look for date in this line or next 3 lines
+    let date = '';
+    const ctx = lines.slice(i, i + 4).join(' ');
+    const dm = ctx.match(dateRe);
+    if (dm) date = dm[0];
+
+    // Look for venue in context
+    const venueLine = lines.slice(i + 1, i + 5).find(l => /(arena|center|centre|stadium|hall|park|convention|expo|museum|theater|theatre|garden|square|plaza)/i.test(l));
+    const venue = venueLine ? venueLine.trim().slice(0, 60) : '';
+
+    const desc = lines.slice(i + 1, i + 3).join(' ').replace(/https?:\/\/\S+/g,'').trim().slice(0, 150);
+
+    // Guess category
+    const lc = (line + desc).toLowerCase();
+    let guessedCat = 'event';
+    if (/convention|expo|trade show|conference/i.test(lc)) guessedCat = 'convention';
+    else if (/festival|fair|carnival/i.test(lc)) guessedCat = 'festival';
+    else if (/concert|tour|music|perform/i.test(lc)) guessedCat = 'music';
+    else if (/game|match|race|championship|tournament/i.test(lc)) guessedCat = 'sports';
+    else if (/food|wine|beer|culinary/i.test(lc)) guessedCat = 'food';
+    else if (/exhibition|exhibit|gallery/i.test(lc)) guessedCat = 'exhibition';
+
+    const catEmoji = {convention:'🎪', festival:'🎉', sports:'🏆', music:'🎵', food:'🍽️', exhibition:'🖼️', event:'🎟️'}[guessedCat] || '🎟️';
+
+    events.push({ name: line.replace(/^[\d\.\-\*•]+\s*/, '').trim(), date, venue, desc, cat: guessedCat, emoji: catEmoji });
+  }
+  return events;
+}
+
+function renderEventCards(events, loc) {
+  const grid = document.getElementById('eventsGrid');
+  if (!grid) return;
+  if (!events.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);font-size:13px">
+      <div style="font-size:40px;margin-bottom:10px">🎟️</div>
+      No events found in <strong style="color:var(--text)">${loc}</strong> for this timeframe.<br>
+      <span style="font-size:11px;margin-top:8px;display:block">Try a broader timeframe or different city.</span>
+    </div>`;
+    return;
+  }
+  const catColor = {convention:'var(--accent)', festival:'var(--gold)', sports:'var(--coral)', music:'var(--accent2)', food:'var(--teal)', exhibition:'var(--green)', event:'var(--text3)'};
+  grid.innerHTML = events.map((ev, i) => `
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--accent2)'" onmouseout="this.style.borderColor='var(--border2)'">
+      <div style="height:80px;background:linear-gradient(135deg,${catColor[ev.cat]||'var(--accent2)'}33,${catColor[ev.cat]||'var(--accent2)'}11);display:flex;align-items:center;justify-content:center;font-size:40px;position:relative">
+        ${ev.emoji}
+        ${i === 0 ? '<div style="position:absolute;top:8px;left:8px;font-size:9px;padding:2px 7px;background:var(--gold);color:#000;border-radius:6px;font-weight:800">FEATURED</div>' : ''}
+      </div>
+      <div style="padding:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:5px;line-height:1.3">${ev.name}</div>
+        ${ev.date ? `<div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:5px">📅 ${ev.date}</div>` : ''}
+        ${ev.venue ? `<div style="font-size:11px;color:var(--text3);margin-bottom:5px">📍 ${ev.venue}</div>` : ''}
+        ${ev.desc ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">${ev.desc.slice(0,120)}${ev.desc.length>120?'…':''}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="padding:2px 8px;background:${catColor[ev.cat]||'var(--surface3)'}22;border:1px solid ${catColor[ev.cat]||'var(--border)'}55;border-radius:8px;font-size:10px;color:${catColor[ev.cat]||'var(--text3)'};font-weight:600;text-transform:capitalize">${ev.cat}</span>
+          <button class="btn-sm" style="font-size:10px;padding:3px 8px" onclick="quickAddToItinerary('${ev.name.replace(/'/g,"\\'")}','attraction')">+ Itinerary</button>
+          <button class="btn-sm" style="font-size:10px;padding:3px 8px" onclick="askAIAbout('${ev.name.replace(/'/g,"\\'")}')">✦ AI Info</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
 
 loadFromStorage();
 updateOverview();
