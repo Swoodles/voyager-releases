@@ -672,6 +672,20 @@
             <div id="modeNote" style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;background:var(--surface2);border-radius:6px">
               🚶 Walking route — follows footpaths and pedestrian streets, avoids all motorways.
             </div>
+            <!-- Transit route legend (shown in transit mode) -->
+            <div id="transitLegend" style="display:none;font-size:11px;padding:7px 10px;background:var(--surface2);border-radius:6px;margin-bottom:10px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:5px">🗺️ Route Legend</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:22px;height:2px;border-top:2px dashed #5bbbf5"></div>
+                  <span style="color:var(--text2)">🚶 Walking</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:22px;height:4px;background:#7c5cbf;border-radius:2px"></div>
+                  <span style="color:var(--text2)">🚌 Transit</span>
+                </div>
+              </div>
+            </div>
 
             <!-- Geocoding Stop Search -->
             <div style="position:relative;margin-bottom:8px">
@@ -762,6 +776,15 @@
         <input type="text" id="discoverLocation" value="Paris, France"
           style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;font-family:inherit"
           placeholder="Enter any city..." onkeydown="if(event.key==='Enter')discoverSearchCity()">
+        <select id="discoverRadius" onchange="discoverSearchCity()" title="Search radius"
+          style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap">
+          <option value="1000">1 km</option>
+          <option value="3000">3 km</option>
+          <option value="5000" selected>5 km</option>
+          <option value="10000">10 km</option>
+          <option value="25000">25 km</option>
+          <option value="50000">50 km</option>
+        </select>
         <button class="btn-sm primary" onclick="discoverSearchCity()" style="white-space:nowrap">🔍 Search</button>
         <button class="btn-sm" onclick="resetToTripLocation()" style="white-space:nowrap">↺ Trip</button>
       </div>
@@ -1743,6 +1766,7 @@ async function saveHotel() {
   renderHotelCard();
   closeModal('hotelModal');
   showToast('✓ Hotel saved!');
+  } catch(err) { showToast('Error saving hotel.'); console.error(err); }
 }
 
 async function addHotelToRoute() {
@@ -1790,6 +1814,7 @@ async function addHotelToRoute() {
   } else {
     showToast('Hotel is already in the route.');
   }
+  } catch(err) { showToast('Could not add hotel to route.'); console.error(err); }
 }
 function switchTrip(val) {
   currentTripId = val;
@@ -1895,18 +1920,17 @@ function deleteCurrentTrip() {
   if (sel.options.length <= 1) { showToast('Cannot delete the last trip.'); return; }
   const tripName = trips[currentTripId]?.name || 'this trip';
   _voyConfirm(`Delete "${tripName}"?`, 'All itinerary and packing data will be permanently removed.', () => {
-delete trips[currentTripId];
-  delete tripData[currentTripId];
-  const opt = sel.querySelector(`option[value="${currentTripId}"]`);
-  if (opt) opt.remove();
-  currentTripId = sel.options[0].value;
-  sel.value = currentTripId;
-  switchTrip(currentTripId);
-  save();
-  showToast('Trip deleted.');
-}
+    delete trips[currentTripId];
+    delete tripData[currentTripId];
+    const opt = sel.querySelector(`option[value="${currentTripId}"]`);
+    if (opt) opt.remove();
+    currentTripId = sel.options[0].value;
+    sel.value = currentTripId;
+    switchTrip(currentTripId);
+    save();
+    showToast('Trip deleted.');
   });
-
+}
 
 // ——— ITINERARY ———
 const TAG_CLASSES = {Flight:'tag-transport', Transport:'tag-transport', Food:'tag-food', Hotel:'tag-hotel', Attraction:'tag-attraction', Other:'tag-attraction'};
@@ -2066,9 +2090,11 @@ function setTransportMode(mode) {
   if (rm) rm.textContent = MODE_LABEL[mode] || mode;
   const note = document.getElementById('modeNote');
   if (note) note.textContent = MODE_NOTES[mode] || '';
-  // Show/hide transit panel
+  // Show/hide transit panel and legend
   const tp = document.getElementById('transitPanel');
   if (tp) tp.style.display = mode === 'transit' ? 'block' : 'none';
+  const tl = document.getElementById('transitLegend');
+  if (tl) tl.style.display = mode === 'transit' ? 'block' : 'none';
 }
 
 // ——— STOP GEOCODING SEARCH ———
@@ -2092,6 +2118,7 @@ async function fetchStopSuggestions(q) {
     const data = await r.json();
     showSuggestions(data);
   } catch(e) { hideSuggestions(); }
+  } catch(err) { hideSuggestions(); }
 }
 
 function showSuggestions(results) {
@@ -2150,6 +2177,7 @@ async function addStopFromSearch() {
       showToast('Location not found. Try a more specific name or address.');
     }
   } catch(e) { showToast('Search failed. Check your connection.'); }
+  } catch(err) { showToast('Search failed.'); console.error(err); }
 }
 
 function renderRouteStops() {
@@ -2239,53 +2267,60 @@ async function optimizeRoute() {
   clearMapMarkers();
   routeStops.forEach((s, i) => addMapMarker(s.lat, s.lng, `${i+1}. ${s.name}`));
 
+  // ——— TRANSIT MODE: multi-modal walk + transit routing ———
+  if (routeTransportMode === 'transit') {
+    await optimizeTransitRoute();
+    return;
+  }
+
   const profile = OSRM_PROFILE[routeTransportMode] || 'foot';
   const coordStr = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
-  // Use annotations for walking to get node-level detail; exclude=motorway for extra safety
-  const extras = routeTransportMode === 'walking' ? '&exclude=motorway' :
-                 routeTransportMode === 'cycling' ? '&exclude=motorway' : '';
-  const url = `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`;
+  const extras = (routeTransportMode === 'walking' || routeTransportMode === 'cycling') ? '&exclude=motorway' : '';
 
-  showToast('⏳ Calculating route via real roads...');
+  showToast('⏳ Calculating route...');
 
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('OSRM returned ' + resp.status);
-    const data = await resp.json();
+  // Primary: router.project-osrm.org — Fallback: routing.openstreetmap.de
+  const endpoints = [
+    `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
+    `https://routing.openstreetmap.de/routed-${profile === 'foot' ? 'foot' : profile === 'bike' ? 'bike' : 'car'}/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`,
+  ];
 
-    if (data.code !== 'Ok' || !data.routes?.length) {
-      showToast('Routing failed — try different stops or switch mode.');
-      return;
-    }
+  let data = null;
+  for (const url of endpoints) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      if (json.code === 'Ok' && json.routes?.length) { data = json; break; }
+    } catch(e) { continue; }
+  }
 
-    const route = data.routes[0];
-    const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
-    mapRouteLayer = L.polyline(latlngs, {
-      color: MODE_COLOR[routeTransportMode] || '#4f8ef7',
-      weight: 4, opacity: 0.88,
-    }).addTo(leafletMap);
-    leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
+  if (!data) {
+    showToast('Routing error — check your connection or try different stops.');
+    return;
+  }
 
-    const distEl = document.getElementById('routeDistance');
-    const durEl  = document.getElementById('routeDuration');
-    if (distEl) distEl.textContent = formatDistance(route.distance);
-    if (durEl)  durEl.textContent  = formatDuration(route.duration);
+  const route = data.routes[0];
+  const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
+  mapRouteLayer = L.polyline(latlngs, {
+    color: MODE_COLOR[routeTransportMode] || '#4f8ef7',
+    weight: 4, opacity: 0.88,
+  }).addTo(leafletMap);
+  leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
 
-    const legsEl = document.getElementById('routeLegs');
-    if (legsEl && route.legs) {
-      legsEl.innerHTML = route.legs.map((leg, i) => `
-        <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:11px">
-          <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i].name} → ${routeStops[i+1].name}</div>
-          <div style="color:var(--text3)">${formatDistance(leg.distance)} · ${formatDuration(leg.duration)}</div>
-        </div>`).join('');
-    }
+  document.getElementById('routeDistance').textContent = formatDistance(route.distance);
+  document.getElementById('routeDuration').textContent = formatDuration(route.duration);
 
-    showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(route.distance)}, ${formatDuration(route.duration)}`);
+  const legsEl = document.getElementById('routeLegs');
+  if (legsEl && route.legs) {
+    legsEl.innerHTML = route.legs.map((leg, i) => `
+      <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:11px">
+        <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i].name} → ${routeStops[i+1].name}</div>
+        <div style="color:var(--text3)">${formatDistance(leg.distance)} · ${formatDuration(leg.duration)}</div>
+      </div>`).join('');
+  }
 
-    // For transit mode: fetch stops and schedules
-    if (routeTransportMode === 'transit') {
-      await loadTransitData(route.geometry);
-    }
+  showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(route.distance)}, ${formatDuration(route.duration)}`);
 
   } catch(err) {
     showToast('Routing error — check your connection.');
@@ -2293,8 +2328,185 @@ async function optimizeRoute() {
   }
 }
 
+// ——— TRANSIT MULTI-MODAL ROUTING ———
+// Finds real transit stops near start/end, draws walking + transit segments separately
+async function optimizeTransitRoute() {
+  const origin = routeStops[0];
+  const dest   = routeStops[routeStops.length - 1];
+
+  showToast('⏳ Finding transit route...');
+
+  // Detect Bay Area (BART/VTA zone)
+  const isBayArea = (origin.lat > 36.9 && origin.lat < 38.9 && origin.lng > -122.9 && origin.lng < -121.2);
+
+  // Find nearest transit stop to origin and destination via Overpass
+  async function findNearestStop(lat, lng, radius = 800) {
+    const q = `[out:json][timeout:15];
+(
+  node["public_transport"="stop_position"][name](around:${radius},${lat},${lng});
+  node["highway"="bus_stop"][name](around:${radius},${lat},${lng});
+  node["railway"~"station|halt|tram_stop"][name](around:${radius},${lat},${lng});
+  node["metro"="station"][name](around:${radius},${lat},${lng});
+);
+out body 10;`;
+    try {
+      const r = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST', headers: { 'Accept': 'application/json' },
+        body: 'data=' + encodeURIComponent(q),
+        signal: AbortSignal.timeout(10000),
+      });
+      const json = await r.json();
+      const stops = (json.elements || []).filter(e => e.lat && e.lon);
+      if (!stops.length) return null;
+      // Sort by distance to point
+      stops.sort((a, b) => {
+        const da = Math.hypot(a.lat - lat, a.lon - lng);
+        const db = Math.hypot(b.lat - lat, b.lon - lng);
+        return da - db;
+      });
+      return stops[0];
+    } catch(e) { return null; }
+  }
+
+  // Fetch OSRM walking route between two points
+  async function walkRoute(fromLat, fromLng, toLat, toLng) {
+    const url = `https://router.project-osrm.org/route/v1/foot/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const json = await r.json();
+      if (json.code === 'Ok' && json.routes?.length) return json.routes[0];
+    } catch(e) {}
+    // Fallback: straight line (minimal)
+    return { geometry: { coordinates: [[fromLng, fromLat], [toLng, toLat]] }, distance: Math.hypot(toLat - fromLat, toLng - fromLng) * 111000, duration: 0 };
+  }
+
+  // Show transit panel immediately
+  const tp = document.getElementById('transitPanel');
+  if (tp) tp.style.display = 'block';
+
+  const [stopNearOrigin, stopNearDest] = await Promise.all([
+    findNearestStop(origin.lat, origin.lng),
+    findNearestStop(dest.lat, dest.lng),
+  ]);
+
+  if (!stopNearOrigin || !stopNearDest) {
+    showToast('⚠ No transit stops found nearby. Try different stops or a more urban area.');
+    // Fall back to walking route
+    const url = `https://router.project-osrm.org/route/v1/foot/${routeStops.map(s=>`${s.lng},${s.lat}`).join(';')}?overview=full&geometries=geojson`;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const json = await r.json();
+      if (json.code === 'Ok') {
+        const latlngs = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        mapRouteLayer = L.polyline(latlngs, { color: '#7c5cbf', weight: 3, dashArray: '8,6' }).addTo(leafletMap);
+        leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
+        document.getElementById('routeDistance').textContent = formatDistance(json.routes[0].distance);
+        document.getElementById('routeDuration').textContent = formatDuration(json.routes[0].duration);
+      }
+    } catch(e) {}
+    return;
+  }
+
+  // Get walking legs
+  const [walkToStop, walkFromStop] = await Promise.all([
+    walkRoute(origin.lat, origin.lng, stopNearOrigin.lat, stopNearOrigin.lon),
+    walkRoute(stopNearDest.lat, stopNearDest.lon, dest.lat, dest.lng),
+  ]);
+
+  // Transit segment: straight line or OSRM driving proxy between stops
+  const transitLatlngs = [
+    [stopNearOrigin.lat, stopNearOrigin.lon],
+    [stopNearDest.lat, stopNearDest.lon],
+  ];
+
+  // Draw the three segments
+  clearRouteLines();
+  const layers = [];
+
+  // Walk leg 1: origin → transit stop (dashed light blue)
+  const walk1Coords = walkToStop.geometry.coordinates.map(c => [c[1], c[0]]);
+  const walkLine1 = L.polyline(walk1Coords, {
+    color: '#5bbbf5', weight: 3, dashArray: '7,5', opacity: 0.9,
+  }).addTo(leafletMap);
+  walkLine1.bindTooltip(`🚶 Walk to ${stopNearOrigin.tags?.name || 'Transit Stop'}`);
+  layers.push(walkLine1);
+
+  // Transit leg: stop → stop (solid purple, thick)
+  const transitLine = L.polyline(transitLatlngs, {
+    color: '#7c5cbf', weight: 5, opacity: 0.92,
+  }).addTo(leafletMap);
+  transitLine.bindTooltip(`🚌 Transit: ${stopNearOrigin.tags?.name || 'Stop'} → ${stopNearDest.tags?.name || 'Stop'}`);
+  layers.push(transitLine);
+
+  // Walk leg 2: transit stop → destination (dashed light blue)
+  const walk2Coords = walkFromStop.geometry.coordinates.map(c => [c[1], c[0]]);
+  const walkLine2 = L.polyline(walk2Coords, {
+    color: '#5bbbf5', weight: 3, dashArray: '7,5', opacity: 0.9,
+  }).addTo(leafletMap);
+  walkLine2.bindTooltip(`🚶 Walk to ${dest.name}`);
+  layers.push(walkLine2);
+
+  mapRouteLayer = layers;
+
+  // Add stop markers
+  const stopIcon = (label, color) => L.divIcon({
+    className: '',
+    html: `<div style="background:${color};color:#fff;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${label}</div>`,
+    iconAnchor: [0, 0],
+  });
+  const m1 = L.marker([stopNearOrigin.lat, stopNearOrigin.lon], { icon: stopIcon(`🚏 ${stopNearOrigin.tags?.name || 'Board here'}`, '#7c5cbf') }).addTo(leafletMap);
+  const m2 = L.marker([stopNearDest.lat, stopNearDest.lon], { icon: stopIcon(`🚏 ${stopNearDest.tags?.name || 'Alight here'}`, '#7c5cbf') }).addTo(leafletMap);
+  transitStopMarkers.push(m1, m2);
+
+  // Fit all layers
+  const allCoords = [...walk1Coords, ...transitLatlngs, ...walk2Coords];
+  const bounds = L.latLngBounds(allCoords);
+  leafletMap.fitBounds(bounds, { padding: [30, 30] });
+
+  // Calculate distances and times
+  const walk1Dist = walkToStop.distance || 0;
+  const walk1Time = walkToStop.duration || (walk1Dist / 1.4); // 1.4 m/s walking
+  const walk2Dist = walkFromStop.distance || 0;
+  const walk2Time = walkFromStop.duration || (walk2Dist / 1.4);
+  const transitDist = Math.hypot(stopNearDest.lat - stopNearOrigin.lat, stopNearDest.lon - stopNearOrigin.lon) * 111000;
+  const estimatedTransitTime = transitDist / 10; // ~10 m/s average transit speed
+  const totalDist = walk1Dist + transitDist + walk2Dist;
+  const totalTime = walk1Time + estimatedTransitTime + walk2Time;
+
+  document.getElementById('routeDistance').textContent = formatDistance(totalDist);
+  document.getElementById('routeDuration').textContent = formatDuration(totalTime);
+
+  // Legs breakdown
+  const legsEl = document.getElementById('routeLegs');
+  if (legsEl) {
+    legsEl.innerHTML = `
+      <div style="padding:8px 10px;background:rgba(91,187,245,0.1);border-radius:8px;border:1px solid rgba(91,187,245,0.3);font-size:11px">
+        <div style="font-weight:600;margin-bottom:3px;color:#5bbbf5">🚶 Walk to stop</div>
+        <div style="color:var(--text3)">${origin.name} → ${stopNearOrigin.tags?.name || 'Transit Stop'}</div>
+        <div style="color:var(--text2);margin-top:2px">${formatDistance(walk1Dist)} · ${formatDuration(walk1Time)}</div>
+      </div>
+      <div style="padding:8px 10px;background:rgba(124,92,191,0.12);border-radius:8px;border:1px solid rgba(124,92,191,0.35);font-size:11px;margin-top:5px">
+        <div style="font-weight:600;margin-bottom:3px;color:var(--accent2)">🚌 Transit</div>
+        <div style="color:var(--text3)">${stopNearOrigin.tags?.name || 'Stop'} → ${stopNearDest.tags?.name || 'Stop'}</div>
+        <div style="color:var(--text2);margin-top:2px">~${formatDistance(transitDist)} · ~${formatDuration(estimatedTransitTime)}</div>
+        ${isBayArea ? `<div style="color:var(--accent);font-size:10px;margin-top:3px">📡 Bay Area: BART · VTA — check departures below</div>` : ''}
+      </div>
+      <div style="padding:8px 10px;background:rgba(91,187,245,0.1);border-radius:8px;border:1px solid rgba(91,187,245,0.3);font-size:11px;margin-top:5px">
+        <div style="font-weight:600;margin-bottom:3px;color:#5bbbf5">🚶 Walk to destination</div>
+        <div style="color:var(--text3)">${stopNearDest.tags?.name || 'Transit Stop'} → ${dest.name}</div>
+        <div style="color:var(--text2);margin-top:2px">${formatDistance(walk2Dist)} · ${formatDuration(walk2Time)}</div>
+      </div>`;
+  }
+
+  showToast(`✓ Transit route: ${formatDistance(totalDist)}, ~${formatDuration(totalTime)}`);
+
+  // Load transit stop data and live departures
+  const midGeometry = { coordinates: [[stopNearOrigin.lon, stopNearOrigin.lat], [stopNearDest.lon, stopNearDest.lat]] };
+  await loadTransitData(midGeometry, stopNearOrigin, stopNearDest);
+}
+
 // ——— TRANSIT DATA (Overpass with route relations + Transitland) ———
-async function loadTransitData(geometry) {
+async function loadTransitData(geometry, knownStop1, knownStop2) {
   const tp = document.getElementById('transitPanel');
   if (tp) tp.style.display = 'block';
 
@@ -2568,10 +2780,14 @@ function stopLiveTracker() {
 
 async function refreshTransitData() {
   try {
-  if (routeStops.length >= 2 && routeTransportMode === 'transit') {
-    await optimizeRoute();
-  } else {
-    showToast('Add stops and calculate a transit route first.');
+    if (routeStops.length >= 2 && routeTransportMode === 'transit') {
+      await optimizeRoute();
+    } else {
+      showToast('Add stops and calculate a transit route first.');
+    }
+  } catch(err) {
+    showToast('Error refreshing transit data.');
+    console.error(err);
   }
 }
 
@@ -2990,8 +3206,6 @@ async function toolJinaReader(url) {
     return { url, content: (await resp.text()).slice(0, 10000) };
   } catch(e) { return null; }
 }
-
-// ——— TOOL: Firecrawl (premium, needs key) ———
 async function toolFirecrawl(query) {
   if (!firecrawlKey) return null;
   try {
@@ -3006,6 +3220,7 @@ async function toolFirecrawl(query) {
   } catch(e) { return null; }
 }
 
+// ——— TOOL: Firecrawl (premium, needs key) ———
 // Convert Overpass elements → normalised candidate objects
 function overpassToCandidate(el) {
   const t = el.tags || {};
@@ -3635,27 +3850,55 @@ async function runDiscoverAgent(location, category) {
     // ——— Step 2: Overpass — single comprehensive query ———
     if (statusTxt) statusTxt.textContent = `Searching ${location.split(',')[0]}...`;
 
-    // Build the union filter based on category
-    // Use a large radius (5km) so we always get results even in less-mapped cities
-    const radius = 5000;
+    // Get radius from the UI selector (default 5km)
+    const radius = parseInt(document.getElementById('discoverRadius')?.value || '5000');
+
+    // ——— Strict category post-filter — prevents OSM mistagging contamination ———
+    function categoryMatchesElement(el, cat) {
+      const t = el.tags || {};
+      if (cat === 'all') return true;
+      if (cat === 'restaurant') return t.amenity === 'restaurant' || (t.amenity === 'fast_food' && t.cuisine && !['bakery','coffee'].includes(t.cuisine));
+      if (cat === 'cafe')       return t.amenity === 'cafe' || (t.amenity === 'fast_food' && (t.cuisine === 'coffee' || t.cuisine === 'tea'));
+      if (cat === 'bar')        return ['bar','pub','nightclub','biergarten'].includes(t.amenity);
+      if (cat === 'bakery')     return t.shop === 'bakery' || (t.amenity === 'fast_food' && t.cuisine === 'bakery') || t.shop === 'pastry';
+      if (cat === 'museum')     return ['museum','gallery'].includes(t.tourism) || t.amenity === 'arts_centre';
+      if (cat === 'attraction') {
+        // Must be a true attraction — explicitly EXCLUDE food/drink amenities
+        const isFood = ['restaurant','cafe','fast_food','bar','pub','bakery','nightclub'].includes(t.amenity);
+        const isShop = t.shop && t.shop !== 'gift';
+        if (isFood || isShop) return false;
+        return ['attraction','viewpoint','artwork','theme_park','zoo','aquarium','gallery','museum'].includes(t.tourism)
+            || ['monument','castle','ruins','memorial','archaeological_site','fort','boundary_stone'].includes(t.historic)
+            || ['park','nature_reserve'].includes(t.leisure)
+            || t.amenity === 'place_of_worship';
+      }
+      return true;
+    }
+
     let filters;
     if (category === 'restaurant') {
       filters = `node["amenity"="restaurant"][name](around:${radius},${lat},${lng});\n  way["amenity"="restaurant"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'cafe') {
       filters = `node["amenity"="cafe"][name](around:${radius},${lat},${lng});\n  way["amenity"="cafe"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'bar') {
-      filters = `node["amenity"~"bar|pub|nightclub"][name](around:${radius},${lat},${lng});\n  way["amenity"~"bar|pub|nightclub"][name](around:${radius},${lat},${lng});`;
+      filters = `node["amenity"~"bar|pub|nightclub|biergarten"][name](around:${radius},${lat},${lng});\n  way["amenity"~"bar|pub|nightclub"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'bakery') {
-      filters = `node["shop"="bakery"][name](around:${radius},${lat},${lng});\n  node["amenity"="fast_food"]["cuisine"~"bakery"][name](around:${radius},${lat},${lng});`;
+      filters = `node["shop"~"bakery|pastry"][name](around:${radius},${lat},${lng});\n  node["amenity"="fast_food"]["cuisine"="bakery"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'museum') {
-      filters = `node["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  way["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});`;
+      filters = `node["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  way["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  node["amenity"="arts_centre"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'attraction') {
-      filters = `node["tourism"~"attraction|viewpoint|artwork|theme_park"][name](around:${radius},${lat},${lng});\n  way["tourism"~"attraction|viewpoint"][name](around:${radius},${lat},${lng});\n  node["historic"~"monument|castle|ruins|memorial"][name](around:${radius},${lat},${lng});`;
+      // Strictly exclude food/drink amenities from attraction results
+      filters = `node["tourism"~"attraction|viewpoint|artwork|theme_park|zoo|aquarium"]["amenity"!~"restaurant|cafe|fast_food|bar|pub"][name](around:${radius},${lat},${lng});
+  way["tourism"~"attraction|viewpoint"]["amenity"!~"restaurant|cafe|fast_food|bar|pub"][name](around:${radius},${lat},${lng});
+  node["historic"~"monument|castle|ruins|memorial|archaeological_site|fort"][name](around:${radius},${lat},${lng});
+  way["historic"~"monument|castle|ruins|fort"][name](around:${radius},${lat},${lng});
+  node["leisure"~"park|nature_reserve"][name](around:${radius},${lat},${lng});`;
     } else {
-      // 'all' — query everything in one shot, higher limit
+      // 'all' — query everything in one shot
       filters = `node["amenity"~"restaurant|cafe|bar|pub|fast_food"][name](around:${radius},${lat},${lng});
-  node["tourism"~"attraction|museum|gallery|viewpoint"][name](around:${radius},${lat},${lng});
+  node["tourism"~"attraction|museum|gallery|viewpoint|zoo"][name](around:${radius},${lat},${lng});
   node["shop"="bakery"][name](around:${radius},${lat},${lng});
+  node["historic"~"monument|castle|ruins|memorial"][name](around:${radius},${lat},${lng});
   way["amenity"~"restaurant|cafe|bar"][name](around:${radius},${lat},${lng});
   way["tourism"~"attraction|museum"][name](around:${radius},${lat},${lng});`;
     }
@@ -3697,6 +3940,8 @@ out body center 40;`;
     const candidates = [];
 
     for (const el of elements) {
+      // Strict category validation BEFORE converting — eliminates OSM mistagging
+      if (!categoryMatchesElement(el, category)) continue;
       const c = overpassToCandidate(el);
       if (!c) continue;
       const key = c.name.toLowerCase().replace(/\s+/g, '');
