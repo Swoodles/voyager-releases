@@ -1,0 +1,56 @@
+{
+  "name": "voyager-vacation-planner",
+  "version": "1.2.0",
+  "description": "Voyager — Smart Vacation Planner",
+  "main": "main.js",
+  "author": "Voyager",
+  "license": "MIT",
+  "scripts": {
+    "start":     "electron .",
+    "build:win": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron":         "^29.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId":       "com.voyager.vacationplanner",
+    "productName": "Voyager",
+    "copyright":   "Copyright 2025 Voyager",
+    "asar":        true,
+    "asarUnpack":  ["assets/**/*"],
+    "directories": {
+      "output":         "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "src/**/*",
+      "assets/**/*",
+      "!assets/*.svg",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "dir",  "arch": ["x64"] }
+      ],
+      "icon":                    "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName":            "Voyager-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick":                           true,
+      "perMachine":                         false,
+      "createDesktopShortcut":              true,
+      "createStartMenuShortcut":            true,
+      "shortcutName":                       "Voyager",
+      "uninstallDisplayName":               "Voyager — Vacation Planner",
+      "installerIcon":                      "assets/icon.ico",
+      "uninstallerIcon":                    "assets/icon.ico",
+      "deleteAppDataOnUninstall":           false,
+      "runAfterFinish":                     false,
+      "include":                            "installer.nsh"
+    }
+  }
+}

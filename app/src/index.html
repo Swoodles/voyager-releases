@@ -1,0 +1,3888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voyager — Vacation Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=DM+Sans:wght@400;500&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=DM+Sans:wght@400;500&display=swap"></noscript>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1117;
+    --surface: #161b27;
+    --surface2: #1e2535;
+    --surface3: #252e42;
+    --accent: #4f8ef7;
+    --accent2: #7c5cbf;
+    --gold: #e8b84b;
+    --coral: #f07060;
+    --teal: #2dd4b5;
+    --green: #3dca72;
+    --text: #e8eaf2;
+    --text2: #9aa3bc;
+    --text3: #5c6680;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-size: 14px;
+  }
+
+  /* ——— SIDEBAR ——— */
+  #sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .logo {
+    padding: 20px 18px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+  .logo p { font-size: 11px; color: var(--text3); margin-top: 2px; letter-spacing: 0.5px; }
+
+  .trip-selector {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trip-selector label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 6px; }
+  .trip-selector select {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text); border-radius: var(--radius-sm); padding: 6px 10px;
+    font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+  .btn-new-trip {
+    width: 100%; margin-top: 6px; padding: 7px; background: var(--accent);
+    color: #fff; border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.3px; transition: opacity 0.2s;
+  }
+  .btn-new-trip:hover { opacity: 0.85; }
+
+  .nav-section { padding: 12px 8px 0; }
+  .nav-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; padding: 0 10px; margin-bottom: 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; color: var(--text2); font-size: 13px;
+    transition: all 0.15s; margin-bottom: 1px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: linear-gradient(135deg, rgba(79,142,247,0.2), rgba(124,92,191,0.15)); color: var(--accent); font-weight: 500; }
+  .nav-icon { width: 18px; text-align: center; font-size: 15px; flex-shrink: 0; }
+
+  .sidebar-footer {
+    margin-top: auto; padding: 14px 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text3);
+    text-align: center;
+  }
+
+  /* ——— MAIN ——— */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    height: 56px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 16px; flex-shrink: 0;
+  }
+  .topbar h2 { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; flex: 1; }
+  .topbar-actions { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 6px 14px; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border2); background: var(--surface2);
+    color: var(--text); transition: all 0.15s;
+  }
+  .btn-sm:hover { background: var(--surface3); border-color: var(--accent); color: var(--accent); }
+  .btn-sm.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-sm.primary:hover { opacity: 0.85; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  .content::-webkit-scrollbar { width: 5px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  /* ——— TABS / PANELS ——— */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ——— OVERVIEW ——— */
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+  }
+  .trip-hero {
+    border: 1px solid var(--border2); border-radius: 16px;
+    padding: 28px 32px; margin-bottom: 24px;
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #1a2540, #2a1e40);
+    min-height: 160px;
+  }
+  .trip-meta { display: flex; gap: 24px; flex-wrap: wrap; }
+  .trip-meta-item { display: flex; flex-direction: column; gap: 2px; }
+  .trip-meta-item span:first-child { font-size: 10px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.8px; }
+  .trip-meta-item span:last-child  { font-size: 14px; font-weight: 500; color: var(--gold); }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+  }
+  .stat-card .stat-icon { font-size: 22px; margin-bottom: 8px; }
+  .stat-card .stat-val { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .stat-card .stat-label { font-size: 11px; color: var(--text3); }
+
+  /* ——— GRID UTILITIES ——— */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .card-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 16px; }
+
+  /* ——— MAP PANEL ——— */
+  #map-frame {
+    width: 100%; height: 420px; border-radius: var(--radius);
+    border: 1px solid var(--border); overflow: hidden; background: var(--surface2);
+  }
+  #leaflet-map { width: 100%; height: 100%; }
+  .leaflet-container { background: #1e2535; }
+  .map-placeholder { text-align: center; }
+  .map-placeholder .map-icon { font-size: 48px; margin-bottom: 8px; }
+  .map-placeholder p { color: var(--text2); font-size: 13px; }
+  .map-placeholder a {
+    display: inline-block; margin-top: 12px; padding: 8px 20px;
+    background: var(--accent); color: #fff; border-radius: var(--radius-sm);
+    text-decoration: none; font-size: 13px; font-weight: 500;
+  }
+
+  .location-list { display: flex; flex-direction: column; gap: 8px; }
+  .location-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--surface2);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+  .location-pin { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .pin-blue { background: rgba(79,142,247,0.2); color: var(--accent); }
+  .pin-gold { background: rgba(232,184,75,0.2); color: var(--gold); }
+  .pin-teal { background: rgba(45,212,181,0.2); color: var(--teal); }
+  .pin-coral { background: rgba(240,112,96,0.2); color: var(--coral); }
+  .location-info { flex: 1; }
+  .location-info .name { font-size: 13px; font-weight: 500; }
+  .location-info .addr { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .location-action { font-size: 11px; color: var(--accent); cursor: pointer; }
+
+  /* ——— ITINERARY ——— */
+  .day-block { margin-bottom: 20px; }
+  .day-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .day-badge {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 11px; font-weight: 700;
+    padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;
+  }
+  .day-date { font-size: 13px; color: var(--text2); }
+  .day-budget { margin-left: auto; font-size: 12px; color: var(--gold); }
+
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    width: 1px; background: var(--border2);
+  }
+  .event {
+    position: relative; padding: 10px 14px; background: var(--surface2);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+    margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .event:hover { border-color: var(--border2); }
+  .event::before {
+    content: ''; position: absolute; left: -17px; top: 14px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg);
+  }
+  .event-type-food::before { background: var(--coral); }
+  .event-type-hotel::before { background: var(--gold); }
+  .event-type-transport::before { background: var(--teal); }
+  .event-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .event-time { font-size: 11px; color: var(--text3); min-width: 40px; }
+  .event-name { font-size: 13px; font-weight: 500; flex: 1; }
+  .event-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500;
+  }
+  .tag-attraction { background: rgba(79,142,247,0.15); color: var(--accent); }
+  .tag-food { background: rgba(240,112,96,0.15); color: var(--coral); }
+  .tag-hotel { background: rgba(232,184,75,0.15); color: var(--gold); }
+  .tag-transport { background: rgba(45,212,181,0.15); color: var(--teal); }
+  .event-note { font-size: 11px; color: var(--text3); padding-left: 48px; }
+  .event-actions { margin-left: auto; display: flex; gap: 4px; }
+  .event-btn { font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
+  .event-btn:hover { color: var(--text); background: var(--surface3); }
+
+  /* ——— RESTAURANTS / REVIEWS ——— */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-chip {
+    padding: 5px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
+    transition: all 0.15s;
+  }
+  .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .place-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+  .place-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: border-color 0.15s, transform 0.15s;
+  }
+  .place-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .place-thumb {
+    height: 120px; background: var(--surface2);
+    display: flex; align-items: center; justify-content: center; font-size: 40px;
+  }
+  .place-body { padding: 12px 14px; }
+  .place-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .place-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .stars { color: var(--gold); font-size: 12px; }
+  .review-count { font-size: 11px; color: var(--text3); }
+  .place-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .ptag { font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--surface3); color: var(--text2); }
+  .price-level { font-size: 12px; color: var(--green); font-weight: 500; }
+  .place-desc { font-size: 11px; color: var(--text3); line-height: 1.5; margin-top: 4px; }
+  .place-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .place-btn {
+    flex: 1; padding: 6px; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 11px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
+    transition: all 0.15s;
+  }
+  .place-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .place-btn.add { background: rgba(79,142,247,0.15); border-color: var(--accent); color: var(--accent); }
+
+  /* ——— ROUTE OPTIMIZER ——— */
+  .route-panel { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+  .route-stops { display: flex; flex-direction: column; gap: 8px; }
+  .route-stop {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--surface2);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+  .stop-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .stop-name { flex: 1; font-size: 13px; }
+  .stop-remove { color: var(--text3); cursor: pointer; font-size: 14px; }
+  .stop-remove:hover { color: var(--coral); }
+
+  .route-summary {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 18px; border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .route-stat { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .route-stat:last-child { border-bottom: none; }
+  .route-stat-label { font-size: 12px; color: var(--text3); }
+  .route-stat-val { font-size: 14px; font-weight: 600; }
+
+  /* ——— VAULT (Tickets etc) ——— */
+  .vault-cats { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .vault-cat {
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border2); background: var(--surface2);
+    cursor: pointer; font-size: 12px; font-weight: 500;
+    color: var(--text2); transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .vault-cat.active { border-color: var(--gold); color: var(--gold); background: rgba(232,184,75,0.08); }
+
+  .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .doc-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; cursor: pointer;
+    transition: all 0.15s; position: relative; overflow: hidden;
+  }
+  .doc-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .doc-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .doc-card.flight::after { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .doc-card.hotel::after { background: linear-gradient(90deg, var(--gold), #e89b2c); }
+  .doc-card.attraction::after { background: linear-gradient(90deg, var(--teal), #1a9e84); }
+  .doc-card.transport::after { background: linear-gradient(90deg, var(--coral), #c44d3b); }
+  .doc-card.doc::after { background: linear-gradient(90deg, var(--accent2), #5a3a99); }
+
+  .doc-icon { font-size: 28px; margin-bottom: 10px; }
+  .doc-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .doc-sub { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+  .doc-info { display: flex; flex-direction: column; gap: 3px; }
+  .doc-info-row { display: flex; justify-content: space-between; font-size: 11px; }
+  .doc-info-row span:first-child { color: var(--text3); }
+  .doc-info-row span:last-child { color: var(--text2); font-weight: 500; }
+  .doc-status {
+    display: inline-block; margin-top: 10px;
+    padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  }
+  .status-confirmed { background: rgba(61,202,114,0.15); color: var(--green); }
+  .status-pending { background: rgba(232,184,75,0.15); color: var(--gold); }
+
+  /* ——— BUDGET ——— */
+  .budget-bar-wrap { margin-bottom: 20px; }
+  .budget-total { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+  .budget-bar-track { height: 8px; background: var(--surface3); border-radius: 4px; overflow: hidden; }
+  .budget-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--teal), var(--accent)); transition: width 0.5s; }
+
+  .budget-cats { display: flex; flex-direction: column; gap: 8px; }
+  .budget-cat { display: flex; align-items: center; gap: 12px; }
+  .budget-cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .budget-cat-name { flex: 1; font-size: 13px; }
+  .budget-cat-bar-wrap { width: 120px; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .budget-cat-bar { height: 100%; border-radius: 2px; }
+  .budget-cat-amount { font-size: 13px; font-weight: 500; min-width: 70px; text-align: right; }
+
+  /* ——— MODAL ——— */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 28px; width: 520px; max-height: 80vh;
+    overflow-y: auto; transform: translateY(20px); transition: transform 0.2s;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 20px; }
+  .modal-close { float: right; cursor: pointer; color: var(--text3); font-size: 20px; }
+  .modal-close:hover { color: var(--text); }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 5px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text); border-radius: var(--radius-sm); padding: 9px 12px;
+    font-size: 13px; font-family: inherit;
+  }
+  .form-group textarea { height: 80px; resize: vertical; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+  .btn-cancel {
+    padding: 8px 20px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border2); background: transparent;
+    color: var(--text2); font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+  .btn-save {
+    padding: 8px 20px; border-radius: var(--radius-sm);
+    background: var(--accent); border: none; color: #fff;
+    font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ——— SEARCH BAR ——— */
+  .search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-bar input { flex: 1; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: var(--radius-sm); padding: 9px 14px; font-size: 13px; font-family: inherit; }
+  .search-bar input::placeholder { color: var(--text3); }
+
+  /* ——— TOAST ——— */
+  .toast { position: fixed; bottom: 100px; right: 24px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px 18px; font-size: 13px; z-index: 2000; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ——— BOTTOM BAR ——— */
+  .ai-send {
+    padding: 8px 18px; background: var(--accent); border: none;
+    border-radius: 20px; color: #fff; font-family: inherit;
+    font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink:0;
+  }
+  .ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ai-response {
+    position: relative; background: var(--surface);
+    border-top: 1px solid var(--border2);
+    padding: 10px 20px; font-size: 13px; color: var(--text2);
+    display: none;
+  }
+  .ai-response.visible { display: block; }
+  .ai-response strong { color: var(--accent); }
+  #modeTabAI:hover, #modeTabResearch:hover { display:none; }
+  /* ——— RESEARCH AGENT ——— */
+  .research-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; transition: border-color 0.2s, transform 0.15s;
+  }
+  .research-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .research-card.top-pick { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(232,184,75,0.2), 0 4px 20px rgba(232,184,75,0.1); }
+  .research-card.top-pick .rc-header { background: linear-gradient(135deg, rgba(232,184,75,0.15), rgba(232,184,75,0.05)); }
+  .rc-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display:flex; align-items:flex-start; gap:12px; }
+  .rc-rank { width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0; }
+  .rc-rank.rank-1 { background:var(--gold);color:#000; }
+  .rc-rank.rank-2 { background:var(--surface3);color:var(--text2); }
+  .rc-rank.rank-3 { background:rgba(124,92,191,0.3);color:var(--accent2); }
+  .rc-body { padding:12px 16px; display:flex; gap:16px; }
+  .rc-scores { display:flex;flex-direction:column;gap:4px;min-width:120px; }
+  .rc-score-bar { height:4px;border-radius:2px;background:var(--surface3);overflow:hidden;margin-top:2px; }
+  .rc-score-fill { height:100%;border-radius:2px;transition:width 0.5s; }
+  .agent-log-line { padding:3px 0;border-bottom:1px solid var(--border);color:var(--text3); }
+  .agent-log-line.success { color:var(--green); }
+  .agent-log-line.error   { color:var(--coral); }
+  .agent-log-line.info    { color:var(--accent); }
+  .score-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="logo">
+    <h1>✦ Voyager</h1>
+    <p>Smart Vacation Planner</p>
+  </div>
+  <div class="trip-selector">
+    <label>Current Trip</label>
+    <select id="tripSelect" onchange="switchTrip(this.value)">
+      <option value="paris">🇫🇷 Paris Getaway</option>
+      <option value="tokyo">🇯🇵 Tokyo Adventure</option>
+      <option value="nyc">🗽 NYC Weekend</option>
+    </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px">
+      <button class="btn-new-trip" onclick="openModal('tripModal')">+ New Trip</button>
+      <button class="btn-new-trip" style="background:var(--coral)" onclick="deleteCurrentTrip()">🗑 Delete</button>
+    </div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Plan</div>
+    <div class="nav-item active" onclick="showPanel('overview', this)"><span class="nav-icon">🏠</span> Overview</div>
+    <div class="nav-item" onclick="showPanel('itinerary', this)"><span class="nav-icon">📅</span> Itinerary</div>
+    <div class="nav-item" onclick="showPanel('map', this)"><span class="nav-icon">🗺️</span> Map & Routes</div>
+    <div class="nav-item" onclick="showPanel('discover', this)"><span class="nav-icon">🔍</span> Discover</div>
+  </div>
+  <div class="nav-section" style="margin-top:8px">
+    <div class="nav-label">Manage</div>
+    <div class="nav-item" onclick="showPanel('vault', this)"><span class="nav-icon">🗂️</span> Documents</div>
+    <div class="nav-item" onclick="showPanel('budget', this)"><span class="nav-icon">💳</span> Budget</div>
+    <div class="nav-item" onclick="showPanel('packing', this)"><span class="nav-icon">🎒</span> Packing</div>
+  </div>
+  <div class="sidebar-footer">
+    Data stored locally in your browser
+  </div>
+</aside>
+
+<!-- MAIN AREA -->
+<div id="main">
+  <div class="topbar">
+    <h2 id="panelTitle">Overview</h2>
+    <div class="topbar-actions">
+      <button class="btn-sm" onclick="exportTrip()">⬇ Export</button>
+      <button class="btn-sm primary" onclick="openModal('eventModal')">+ Add Event</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- OVERVIEW PANEL -->
+    <div id="panel-overview" class="panel active">
+      <div class="trip-hero" id="tripHero">
+        <!-- Background image layer -->
+        <div id="heroImageBg" style="
+          position:absolute;inset:0;border-radius:16px;
+          background-size:cover;background-position:center;
+          opacity:0;transition:opacity 1.2s ease;z-index:0;
+        "></div>
+        <!-- Dark overlay for readability -->
+        <div style="position:absolute;inset:0;border-radius:16px;z-index:1;
+          background:linear-gradient(135deg,rgba(10,16,35,0.82) 0%,rgba(20,12,35,0.70) 60%,rgba(0,0,0,0.45) 100%)"></div>
+
+        <!-- Content layer -->
+        <div style="position:relative;z-index:2">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <h3 id="heroTitle" style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;margin-bottom:4px">🇫🇷 Paris Getaway</h3>
+              <p id="heroSubtitle" style="color:rgba(255,255,255,0.65);font-size:13px;margin-bottom:14px">City of Lights — Spring Escape</p>
+              <div class="trip-meta" id="heroMeta"></div>
+            </div>
+
+            <!-- Live weather + AQI widget -->
+            <div id="heroWeatherWidget" style="
+              display:none;flex-shrink:0;text-align:right;
+              background:rgba(0,0,0,0.35);backdrop-filter:blur(8px);
+              border:1px solid rgba(255,255,255,0.1);border-radius:14px;
+              padding:12px 16px;min-width:150px;
+            ">
+              <!-- Temperature + unit toggle -->
+              <div style="display:flex;align-items:baseline;justify-content:flex-end;gap:4px;margin-bottom:2px">
+                <span id="heroTemp" style="font-size:34px;font-weight:700;line-height:1;color:#fff">—</span>
+                <button id="heroTempUnitBtn" onclick="toggleTempUnit()" style="
+                  background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);
+                  border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;
+                  padding:2px 6px;cursor:pointer;transition:all 0.2s;line-height:1.4;
+                " title="Click to switch °C / °F">°C</button>
+              </div>
+              <div id="heroWeatherDesc" style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:10px;text-align:right">—</div>
+
+              <!-- AQI -->
+              <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:8px">
+                <div style="font-size:9px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">Air Quality Index</div>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                  <span id="heroAqiLabel" style="font-size:10px;font-weight:600">—</span>
+                  <span id="heroAqiBadge" style="
+                    font-size:12px;font-weight:800;padding:2px 8px;
+                    border-radius:8px;background:rgba(255,255,255,0.15);color:#fff;
+                  ">—</span>
+                </div>
+              </div>
+              <div id="heroWeatherLocation" style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:6px;text-align:right"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading shimmer while image fetches -->
+        <div id="heroImageShimmer" style="
+          position:absolute;inset:0;border-radius:16px;z-index:1;
+          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.04) 50%,transparent 100%);
+          background-size:200% 100%;animation:shimmer 1.8s infinite;
+        "></div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">📌</div>
+          <div class="stat-val" id="statEvents">0</div>
+          <div class="stat-label">Events Planned</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🍽️</div>
+          <div class="stat-val" id="statRestaurants">0</div>
+          <div class="stat-label">Restaurants</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎟️</div>
+          <div class="stat-val" id="statTickets">0</div>
+          <div class="stat-label">Tickets Saved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <div class="stat-val" id="statSpent">$0</div>
+          <div class="stat-label">Total Expenses</div>
+        </div>
+      </div>
+
+      <!-- HOTEL CARD -->
+      <div class="card" style="margin-bottom:20px;border-color:rgba(232,184,75,0.28);background:linear-gradient(135deg,rgba(232,184,75,0.05),transparent)">
+        <div class="card-header" style="margin-bottom:0">
+          <div class="card-title"><span class="icon">🏨</span> Your Hotel</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm" onclick="addHotelToRoute()" title="Add hotel to route planner">🗺️ Route</button>
+            <button class="btn-sm" onclick="openHotelModal()">✏️ Edit</button>
+          </div>
+        </div>
+        <div id="hotelCardContent" style="margin-top:12px"></div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="icon">📅</span> First Day's Agenda</div>
+          </div>
+          <div id="todayAgenda" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="icon">⚡</span> Quick Actions</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+            <button class="btn-sm" onclick="showPanel('map',null);document.querySelectorAll('.nav-item')[2].click()">🗺️ Open Map</button>
+            <button class="btn-sm" onclick="showPanel('discover',null);document.querySelectorAll('.nav-item')[3].click()">🍽️ Find Restaurants</button>
+            <button class="btn-sm" onclick="showPanel('vault',null);document.querySelectorAll('.nav-item')[4].click()">🎟️ View Tickets</button>
+            <button class="btn-sm" onclick="openModal('eventModal')">+ Add Event</button>
+          </div>
+          <div class="card-header" style="margin-top:8px">
+            <div class="card-title"><span class="icon">⚠️</span> Reminders</div>
+          </div>
+          <div id="remindersArea" style="display:flex;flex-direction:column;gap:6px">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ITINERARY PANEL -->
+    <div id="panel-itinerary" class="panel">
+      <div style="display:flex;gap:10px;margin-bottom:18px;align-items:center">
+        <div style="flex:1;font-size:13px;color:var(--text2)" id="itineraryMeta">Loading...</div>
+        <button class="btn-sm" onclick="openModal('eventModal')">+ Add Event</button>
+      </div>
+      <div id="itineraryContent"></div>
+    </div>
+
+    <!-- MAP PANEL -->
+    <div id="panel-map" class="panel">
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:20px">
+        <div>
+          <div id="map-frame">
+            <div id="leaflet-map"></div>
+          </div>
+          <div style="margin-top:16px">
+            <div class="card-header" style="margin-bottom:10px">
+              <div class="card-title"><span class="icon">⚡</span> Route Optimizer</div>
+              <button class="btn-sm primary" onclick="optimizeRoute()">▶ Calculate Route</button>
+            </div>
+
+            <!-- Transport Mode Selector -->
+            <div style="display:flex;gap:6px;margin-bottom:12px">
+              <button id="mode-walking" class="btn-sm primary" onclick="setTransportMode('walking')" style="flex:1;font-size:11px">🚶 Walk</button>
+              <button id="mode-cycling" class="btn-sm" onclick="setTransportMode('cycling')" style="flex:1;font-size:11px">🚴 Cycle</button>
+              <button id="mode-driving" class="btn-sm" onclick="setTransportMode('driving')" style="flex:1;font-size:11px">🚗 Drive</button>
+              <button id="mode-transit" class="btn-sm" onclick="setTransportMode('transit')" style="flex:1;font-size:11px">🚌 Transit</button>
+            </div>
+            <div id="modeNote" style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;background:var(--surface2);border-radius:6px">
+              🚶 Walking route — follows footpaths and pedestrian streets, avoids all motorways.
+            </div>
+
+            <!-- Geocoding Stop Search -->
+            <div style="position:relative;margin-bottom:8px">
+              <div style="display:flex;gap:8px">
+                <input type="text" id="stopInput" placeholder="Search address or place name..."
+                  style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit"
+                  oninput="onStopInputChange()" onkeydown="if(event.key==='Enter'){addStopFromSearch();} if(event.key==='Escape'){hideSuggestions();}">
+                <button class="btn-sm primary" onclick="addStopFromSearch()">Add</button>
+              </div>
+              <div id="stopSuggestions" style="display:none;position:absolute;top:100%;left:0;right:50px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;z-index:999;max-height:200px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 20px rgba(0,0,0,0.5)"></div>
+            </div>
+
+            <!-- Hotel Quick-Add -->
+            <div id="hotelQuickAdd" style="margin-bottom:8px;display:none">
+              <button onclick="addHotelToRoute()" style="width:100%;padding:7px 12px;background:rgba(232,184,75,0.12);border:1px solid rgba(232,184,75,0.35);border-radius:8px;color:var(--gold);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:background 0.15s" onmouseover="this.style.background='rgba(232,184,75,0.2)'" onmouseout="this.style.background='rgba(232,184,75,0.12)'">
+                🏨 Add My Hotel as Start Point
+              </button>
+            </div>
+
+            <div id="routeStopsContainer">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Transit Info Panel (shown only in transit mode) -->
+          <div id="transitPanel" style="display:none;margin-top:16px">
+            <div class="card">
+              <div class="card-header" style="margin-bottom:10px">
+                <div class="card-title"><span class="icon">🚏</span> Nearby Transit Stops</div>
+                <button class="btn-sm" onclick="openModal('transitKeyModal')" id="transitKeyBtn" style="font-size:11px">🔑 API Key</button>
+              </div>
+              <div id="transitStopsArea" style="font-size:12px;color:var(--text3)">Calculate a transit route to see nearby stops.</div>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <div class="card-header" style="margin-bottom:10px">
+                <div class="card-title"><span class="icon">📅</span> Live Departures</div>
+                <button class="btn-sm" onclick="refreshTransitData()" style="font-size:11px">↻ Refresh</button>
+              </div>
+              <div id="transitDeparturesArea" style="font-size:12px;color:var(--text3)">Add your Transitland API key to see live schedules.</div>
+              <div id="liveTrackerNote" style="margin-top:8px;font-size:11px;color:var(--text3);display:none">
+                🔴 Live vehicle positions: showing real-time data where available.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px"><span class="icon">📊</span> Route Summary</div>
+            <div class="route-stat">
+              <span class="route-stat-label">Distance</span>
+              <span class="route-stat-val" id="routeDistance">—</span>
+            </div>
+            <div class="route-stat">
+              <span class="route-stat-label">Est. Time</span>
+              <span class="route-stat-val" id="routeDuration">—</span>
+            </div>
+            <div class="route-stat">
+              <span class="route-stat-label">Mode</span>
+              <span class="route-stat-val" id="routeMode">🚶 Walking</span>
+            </div>
+            <div class="route-stat">
+              <span class="route-stat-label">Stops</span>
+              <span class="route-stat-val" id="routeStopCount">0</span>
+            </div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+              <button class="btn-sm primary" onclick="optimizeRoute()" style="width:100%">▶ Calculate Route</button>
+              <button class="btn-sm" onclick="clearAllRoute()" style="width:100%">🗑 Clear Route</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="margin-bottom:10px"><span class="icon">📍</span> Legs</div>
+            <div id="routeLegs" style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:12px;color:var(--text3)">Add stops and calculate a route to see legs here.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DISCOVER PANEL -->
+    <div id="panel-discover" class="panel">
+      <!-- Location + search bar -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius)">
+        <span style="font-size:14px">📍</span>
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap">Discovering in:</span>
+        <input type="text" id="discoverLocation" value="Paris, France"
+          style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;font-family:inherit"
+          placeholder="Enter any city..." onkeydown="if(event.key==='Enter')discoverSearchCity()">
+        <button class="btn-sm primary" onclick="discoverSearchCity()" style="white-space:nowrap">🔍 Search</button>
+        <button class="btn-sm" onclick="resetToTripLocation()" style="white-space:nowrap">↺ Trip</button>
+      </div>
+
+      <div class="filter-bar" style="margin-bottom:12px">
+        <div class="filter-chip active" onclick="filterPlaces(this,'all')">All</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'restaurant')">🍽️ Restaurants</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'cafe')">☕ Cafés</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'attraction')">🏛️ Attractions</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'bar')">🍷 Bars</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'bakery')">🥐 Bakeries</div>
+        <div class="filter-chip" onclick="filterDiscoverCategory(this,'museum')">🖼️ Museums</div>
+      </div>
+
+      <!-- Agent status bar -->
+      <div id="discoverAgentStatus" style="display:none;align-items:center;gap:8px;padding:8px 12px;
+        background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--accent)">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite"></div>
+        <span id="discoverAgentStatusText">Searching for top places...</span>
+      </div>
+
+      <div class="place-grid" id="placeGrid"></div>
+    </div>
+
+    <!-- VAULT PANEL -->
+    <div id="panel-vault" class="panel">
+      <div class="vault-cats">
+        <div class="vault-cat active" onclick="filterVault(this,'all')">📁 All Documents</div>
+        <div class="vault-cat" onclick="filterVault(this,'flight')">✈️ Flights</div>
+        <div class="vault-cat" onclick="filterVault(this,'hotel')">🏨 Hotels</div>
+        <div class="vault-cat" onclick="filterVault(this,'attraction')">🎫 Attraction Tickets</div>
+        <div class="vault-cat" onclick="filterVault(this,'transport')">🚌 Transport</div>
+        <div class="vault-cat" onclick="filterVault(this,'doc')">📄 Other Docs</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;gap:8px">
+        <button class="btn-sm" onclick="openModal('docUploadModal')">+ Add Document</button>
+        <button class="btn-sm">📤 Import from Email</button>
+      </div>
+      <div class="doc-grid" id="docGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- BUDGET PANEL -->
+    <div id="panel-budget" class="panel">
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header" style="margin-bottom:16px">
+            <div class="card-title"><span class="icon">💰</span> Budget Overview</div>
+            <button class="btn-sm" onclick="openModal('setBudgetModal')">Set Budget</button>
+          </div>
+          <div id="budgetOverviewArea">
+            <!-- Populated by renderBudget() -->
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="icon">📝</span> Expense Log</div>
+            <button class="btn-sm" onclick="openModal('expenseModal')">+ Add</button>
+          </div>
+          <div id="expenseLogArea" style="display:flex;flex-direction:column;gap:6px">
+            <!-- Populated by renderBudget() -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PACKING PANEL -->
+    <div id="panel-packing" class="panel">
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span class="icon">🧳</span> Packing List</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-sm" onclick="openModal('packModal')">+ Add Item</button>
+              <button class="btn-sm" onclick="checkAllPacked()">✓ Check All</button>
+            </div>
+          </div>
+          <div id="packingList" style="display:flex;flex-direction:column;gap:4px">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-title" style="margin-bottom:10px"><span class="icon">📊</span> Packing Progress</div>
+            <div id="packingProgress" style="font-size:28px;font-weight:700;margin-bottom:4px">0%</div>
+            <div style="font-size:12px;color:var(--text3)" id="packingCount">0 of 0 items packed</div>
+            <div class="budget-bar-track" style="margin-top:10px">
+              <div id="packProgressBar" class="budget-bar-fill" style="width:0%;background:linear-gradient(90deg,var(--teal),var(--green))"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:10px"><span class="icon">💡</span> Smart Suggestions</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
+                ☀️ June in Paris: light layers, sunscreen, rain jacket
+              </div>
+              <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
+                👟 Comfortable walking shoes essential — cobblestones!
+              </div>
+              <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
+                🔌 European plug adapter (Type E/F)
+              </div>
+              <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
+                💳 Notify bank of international travel
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end content -->
+
+  <!-- ═══ UNIFIED BOTTOM BAR ═══ -->
+  <!-- Research params pop-out (slides up above the bar) -->
+  <div id="researchParamsPanel" style="
+    display:none; position:relative;
+    background:var(--surface); border-top:1px solid var(--border2);
+    padding:14px 20px; flex-shrink:0;
+  ">
+    <!-- Arrow indicator pointing down to bar -->
+    <div style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:0;height:0;
+      border-left:8px solid transparent;border-right:8px solid transparent;
+      border-top:8px solid var(--border2);z-index:2"></div>
+    <div style="position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:0;height:0;
+      border-left:8px solid transparent;border-right:8px solid transparent;
+      border-top:8px solid var(--surface);z-index:3"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end">
+      <div>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Category</label>
+        <select id="researchCategory" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit">
+          <option value="restaurant">🍽️ Restaurant</option>
+          <option value="hotel">🏨 Hotel</option>
+          <option value="attraction">🏛️ Attraction</option>
+          <option value="activity">🎯 Activity</option>
+          <option value="transport">🚌 Transport</option>
+          <option value="general">🔍 General</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Max Budget</label>
+        <input type="text" id="researchBudget" placeholder="e.g. $50, €30"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Priority</label>
+        <select id="researchPriority" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit">
+          <option value="balanced">⚖️ Balanced</option>
+          <option value="quality">⭐ Best Quality</option>
+          <option value="value">💰 Best Value</option>
+          <option value="popular">👥 Most Popular</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Scraper</label>
+        <select id="researchScraper" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit">
+          <option value="firecrawl">🔥 Firecrawl (primary)</option>
+          <option value="jina">📄 Jina Reader</option>
+          <option value="crawl4ai">🤖 Crawl4AI</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-sm" onclick="openModal('firecrawlKeyModal')" title="Set Firecrawl API key" style="white-space:nowrap">🔑 Keys</button>
+        <button class="btn-sm" onclick="clearResearch()" title="Clear results" style="white-space:nowrap">✕</button>
+      </div>
+    </div>
+
+    <!-- Weight sliders row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px"><span>⭐ Rating</span><span id="wRatingVal" style="color:var(--gold)">40%</span></div>
+        <input type="range" min="0" max="100" value="40" id="wRating" oninput="updateWeights()" style="width:100%;accent-color:var(--gold)">
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px"><span>👥 Reviews</span><span id="wReviewsVal" style="color:var(--accent)">20%</span></div>
+        <input type="range" min="0" max="100" value="20" id="wReviews" oninput="updateWeights()" style="width:100%;accent-color:var(--accent)">
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px"><span>💰 Value</span><span id="wValueVal" style="color:var(--teal)">25%</span></div>
+        <input type="range" min="0" max="100" value="25" id="wValue" oninput="updateWeights()" style="width:100%;accent-color:var(--teal)">
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px"><span>✨ Features</span><span id="wFeaturesVal" style="color:var(--coral)">15%</span></div>
+        <input type="range" min="0" max="100" value="15" id="wFeatures" oninput="updateWeights()" style="width:100%;accent-color:var(--coral)">
+      </div>
+    </div>
+    <div id="weightWarning" style="font-size:10px;color:var(--coral);display:none;margin-top:4px">⚠ Weights should sum to 100%</div>
+  </div>
+
+  <!-- Research results drawer (slides up above bar) -->
+  <div id="researchResultsDrawer" style="
+    display:none; max-height:380px; overflow-y:auto;
+    background:var(--surface); border-top:1px solid var(--border2);
+    flex-shrink:0;
+  ">
+    <!-- Results cards -->
+    <div id="researchResults" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px"></div>
+  </div>
+
+  <!-- Main bottom bar — single unified Voyager AI bar -->
+  <div id="mainBottomBar" style="
+    background:var(--surface); border-top:1px solid var(--border);
+    padding:0; display:flex; flex-direction:column; flex-shrink:0;
+  ">
+    <!-- Single row: Voyager AI -->
+    <div id="bottomBarResearch" style="display:flex;align-items:center;gap:8px;padding:8px 16px">
+      <span style="font-size:16px;color:var(--accent)">✦</span>
+      <input type="text" id="researchQuery"
+        placeholder="Voyager AI — Ask anything or search: best ramen in Tokyo, budget hotels Paris, top things to do in NYC..."
+        onkeydown="if(event.key==='Enter')runResearchAgent()"
+        style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+               border-radius:20px;padding:8px 16px;font-size:13px;font-family:inherit">
+      <button id="researchParamsBtn" onclick="toggleResearchParams()"
+        style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);
+               border-radius:20px;color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;
+               white-space:nowrap;transition:all 0.15s" title="Search parameters">
+        ⚙ Params
+      </button>
+      <button class="ai-send" onclick="runResearchAgent()" id="researchRunBtn">Search</button>
+      <button class="btn-sm" onclick="openModal('apiKeyModal')" title="Configure AI keys" style="flex-shrink:0">⚙️</button>
+      <div id="researchStatus" style="font-size:11px;color:var(--text3);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+  </div>
+
+  <div class="ai-response" id="aiResponse"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="eventModal-overlay" onclick="closeModal('eventModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('eventModal')">✕</span>
+    <h3>Add Event to Itinerary</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Day</label>
+        <select id="eventDaySelect" onchange="onDaySelectChange()">
+          <!-- populated dynamically -->
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Time</label>
+        <input type="time" id="eventTime" value="10:00">
+      </div>
+    </div>
+    <div class="form-group" id="newDayTitleGroup" style="display:none">
+      <label>Day Title</label>
+      <input type="text" id="newDayTitle" placeholder="e.g. Explore Montmartre & Sacré-Cœur">
+    </div>
+    <div class="form-group">
+      <label>Event Name</label>
+      <input type="text" id="eventName" placeholder="e.g. Visit Musée d'Orsay">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select id="eventType">
+          <option value="attraction">🏛️ Attraction</option>
+          <option value="food">🍽️ Food & Dining</option>
+          <option value="hotel">🏨 Accommodation</option>
+          <option value="transport">🚌 Transport</option>
+          <option value="other">🎉 Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Estimated Cost</label>
+        <input type="text" id="eventCost" placeholder="$0.00">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="eventNotes" placeholder="Booking reference, tips, things to remember..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('eventModal')">Cancel</button>
+      <button class="btn-save" onclick="saveEvent()">Save Event</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="tripModal-overlay" onclick="closeModal('tripModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('tripModal')">✕</span>
+    <h3>Create New Trip</h3>
+    <div class="form-group">
+      <label>Trip Name</label>
+      <input type="text" id="newTripName" placeholder="e.g. Honeymoon in Bali">
+    </div>
+    <div class="form-group">
+      <label>Destination</label>
+      <div style="position:relative">
+        <input type="text" id="newTripDest" placeholder="Start typing a city..."
+          autocomplete="off"
+          oninput="onDestInputChange()"
+          onkeydown="if(event.key==='Escape')closeDestDropdown()"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit">
+        <div id="destDropdown" style="
+          display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+          background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);
+          box-shadow:0 8px 24px rgba(0,0,0,0.5);overflow:hidden;margin-top:3px;
+        "></div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="newTripStart">
+      </div>
+      <div class="form-group">
+        <label>End Date</label>
+        <input type="date" id="newTripEnd">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Travelers</label>
+        <input type="number" id="newTripTravelers" value="2" min="1">
+      </div>
+      <div class="form-group">
+        <label>Total Budget</label>
+        <input type="text" id="newTripBudget" placeholder="$5,000">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea placeholder="Special occasions, preferences, must-sees..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('tripModal')">Cancel</button>
+      <button class="btn-save" onclick="saveTrip()">Create Trip</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="docModal-overlay" onclick="closeModal('docModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('docModal')">✕</span>
+    <h3>✈️ Air France — Flight Confirmation</h3>
+    <div style="background:var(--surface2);border-radius:12px;padding:20px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">FLIGHT</div><div style="font-size:16px;font-weight:700">AF 123</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">CONFIRMATION</div><div style="font-size:16px;font-weight:700;color:var(--accent)">AF7X9K2</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">FROM</div><div style="font-weight:600">SFO</div><div style="font-size:11px;color:var(--text3)">San Francisco</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">TO</div><div style="font-weight:600">CDG</div><div style="font-size:11px;color:var(--text3)">Paris Charles de Gaulle</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">DATE</div><div style="font-weight:600">Jun 14, 2025</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">DEPARTS</div><div style="font-weight:600">10:45 AM</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">PASSENGERS</div><div style="font-weight:600">2 Adults</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">CLASS</div><div style="font-weight:600">Economy</div></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('docModal')">Close</button>
+      <button class="btn-save" onclick="window.open('https://www.airfrance.com','_blank');closeModal('docModal')">Check-in Online</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="docUploadModal-overlay" onclick="closeModal('docUploadModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('docUploadModal')">✕</span>
+    <h3>Add Document</h3>
+    <div class="form-group">
+      <label>Document Type</label>
+      <select id="docType">
+        <option value="flight">✈️ Flight Ticket</option>
+        <option value="hotel">🏨 Hotel Booking</option>
+        <option value="attraction">🎫 Attraction Ticket</option>
+        <option value="transport">🚌 Transport Pass</option>
+        <option value="doc">📄 Other Document</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="docTitle" placeholder="e.g. Eiffel Tower Summit Ticket">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="docDate">
+      </div>
+      <div class="form-group">
+        <label>Confirmation #</label>
+        <input type="text" id="docConf" placeholder="ABC123">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Details / Notes</label>
+      <textarea id="docNotes" placeholder="Times, addresses, special instructions..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('docUploadModal')">Cancel</button>
+      <button class="btn-save" onclick="saveDoc()">Save Document</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="packModal-overlay" onclick="closeModal('packModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('packModal')">✕</span>
+    <h3>Add Packing Item</h3>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="packCat">
+        <option>👔 Clothing</option>
+        <option>💊 Health & Toiletries</option>
+        <option>📱 Tech & Electronics</option>
+        <option>📄 Documents</option>
+        <option>🎒 Accessories</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Item Name</label>
+      <input type="text" id="packItemName" placeholder="e.g. Passport">
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('packModal')">Cancel</button>
+      <button class="btn-save" onclick="addPackItem()">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="expenseModal-overlay" onclick="closeModal('expenseModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('expenseModal')">✕</span>
+    <h3>Log Expense</h3>
+    <div class="form-group"><label>Description</label><input type="text" id="expDesc" placeholder="e.g. Lunch at café"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount</label><input type="number" id="expAmount" placeholder="0.00" min="0"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="expCat">
+          <option value="Flights">✈️ Flights</option>
+          <option value="Accommodation">🏨 Accommodation</option>
+          <option value="Food">🍽️ Food</option>
+          <option value="Activities">🎫 Activities</option>
+          <option value="Transport">🚌 Transport</option>
+          <option value="Shopping">🛍️ Shopping</option>
+          <option value="Other">📋 Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Date</label><input type="date" id="expDate"></div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('expenseModal')">Cancel</button>
+      <button class="btn-save" onclick="saveExpense()">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="setBudgetModal-overlay" onclick="closeModal('setBudgetModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('setBudgetModal')">✕</span>
+    <h3>Set Trip Budget</h3>
+    <div class="form-group">
+      <label>Total Budget (USD)</label>
+      <input type="number" id="totalBudgetInput" placeholder="e.g. 5000" min="0">
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('setBudgetModal')">Cancel</button>
+      <button class="btn-save" onclick="saveTripBudget()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="apiKeyModal-overlay" onclick="closeModal('apiKeyModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('apiKeyModal')">✕</span>
+    <h3>✦ Voyager AI Settings</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Voyager AI is powered by Claude. Enter your Anthropic API key to enable AI-powered travel assistance.</p>
+    <div class="form-group">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="font-family:monospace">
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:4px">Your key is stored only in memory and never sent anywhere except Anthropic's API. Get a key at <strong>console.anthropic.com</strong></p>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('apiKeyModal')">Cancel</button>
+      <button class="btn-save" onclick="saveApiKey()">Save Key</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="hotelModal-overlay" onclick="closeModal('hotelModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('hotelModal')">✕</span>
+    <h3>🏨 Your Hotel</h3>
+    <div class="form-group">
+      <label>Hotel Name</label>
+      <input type="text" id="hotelName" placeholder="e.g. Hotel Le Marais">
+    </div>
+    <div class="form-group">
+      <label>Address</label>
+      <input type="text" id="hotelAddress" placeholder="Full address — used for map routing">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Check-In</label>
+        <input type="date" id="hotelCheckIn">
+      </div>
+      <div class="form-group">
+        <label>Check-Out</label>
+        <input type="date" id="hotelCheckOut">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Confirmation #</label>
+        <input type="text" id="hotelConf" placeholder="ABC123">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="text" id="hotelPhone" placeholder="+1 234 567 8900">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('hotelModal')">Cancel</button>
+      <button class="btn-save" onclick="saveHotel()">Save Hotel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="transitKeyModal-overlay" onclick="closeModal('transitKeyModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('transitKeyModal')">✕</span>
+    <h3>🚌 Transit Data Settings</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      Live schedules and real-time vehicle tracking are powered by <strong>Transitland</strong> — a free, open transit data platform covering thousands of cities worldwide.
+    </p>
+    <div class="form-group">
+      <label>Transitland API Key (free)</label>
+      <input type="text" id="transitlandKeyInput" placeholder="your-transitland-key" style="font-family:monospace">
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:4px">
+      Get your free key at <strong>transit.land</strong> → Sign In → API Keys. No credit card required.
+    </p>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('transitKeyModal')">Cancel</button>
+      <button class="btn-save" onclick="saveTransitKey()">Save Key</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="firecrawlKeyModal-overlay" onclick="closeModal('firecrawlKeyModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <span class="modal-close" onclick="closeModal('firecrawlKeyModal')">✕</span>
+    <h3>🔑 Research Agent API Keys</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      The Research Agent uses real scraping tools. Firecrawl is the primary engine — get a free key at <strong>firecrawl.dev</strong>. Jina Reader works with no key at all.
+    </p>
+    <div class="form-group">
+      <label>🔥 Firecrawl API Key (primary scraper)</label>
+      <input type="text" id="firecrawlKeyInput" placeholder="fc-xxxxxxxxxxxxxxxx" style="font-family:monospace">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Free tier at firecrawl.dev — 500 credits/month, no card needed</div>
+    </div>
+    <div class="form-group">
+      <label>📄 Jina Reader (no key needed — always active as fallback)</label>
+      <input type="text" value="r.jina.ai — free, no key required" disabled
+        style="font-family:monospace;opacity:0.5;width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>🤖 Crawl4AI (auto-used for dynamic JS-heavy pages)</label>
+      <input type="text" value="Built-in — no key needed" disabled
+        style="font-family:monospace;opacity:0.5;width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px">
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('firecrawlKeyModal')">Cancel</button>
+      <button class="btn-save" onclick="saveFirecrawlKey()">Save Keys</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ——— API KEY ———
+let voyagerApiKey = '';
+
+// ——— MAP STATE ———
+let leafletMap = null, mapMarkers = [], mapRouteLayer = null;
+
+// ——— DEFAULT DATA ———
+const DEFAULT_PARIS = {
+  days: [
+    { dayNum:1, date:'Saturday, June 14 — Arrival', budget:'Est. €180', events:[
+      {time:'14:35', name:'Arrive CDG — Air France AF123', type:'transport', tag:'Flight', note:'Terminal 2E · Baggage claim B · Conf: AF7X9K2'},
+      {time:'16:00', name:'RER B → Paris Nord → Hotel', type:'transport', tag:'Transport', note:'~35 min · €11.80pp · Take RER B direction Mitry-Claye'},
+      {time:'17:30', name:'Check-in: Hotel Le Marais', type:'hotel', tag:'Hotel', note:'3 Rue de Bretagne · 75003 Paris · Conf: HLM29847'},
+      {time:'20:00', name:'Dinner — Brasserie Saint-Louis', type:'food', tag:'Food', note:'Light first-night dinner · Île Saint-Louis nearby · ★ 4.6'},
+    ]},
+    { dayNum:2, date:'Sunday, June 15 — Montmartre & Sacré-Cœur', budget:'Est. €120', events:[
+      {time:'9:30', name:'Sacré-Cœur Basilica', type:'attraction', tag:'Attraction', note:'Free entry · Arrive early to avoid crowds · Dress modestly'},
+      {time:'12:30', name:'Lunch at La Maison Rose', type:'food', tag:'Food', note:'Iconic pink café · ★ 4.3 · French bistro cuisine'},
+      {time:'15:00', name:'Moulin Rouge Neighborhood Walk', type:'attraction', tag:'Attraction', note:'Self-guided · Artist studios open Sunday afternoons'},
+    ]},
+    { dayNum:3, date:'Monday, June 16 — Museums & Seine', budget:'Est. €220', events:[
+      {time:'9:00', name:'Breakfast — Café de Flore', type:'food', tag:'Food', note:''},
+      {time:'11:00', name:'Louvre Museum', type:'attraction', tag:'Attraction', note:'Skip-the-line booked · Focus: Denon Wing, Mona Lisa, Venus de Milo'},
+      {time:'14:30', name:'Seine River Cruise', type:'attraction', tag:'Attraction', note:'Bateaux Mouches · €15pp · 1h 15min'},
+      {time:'19:30', name:'Dinner — Le Jules Verne', type:'food', tag:'Food', note:'Eiffel Tower restaurant · Reservation: 2 pax · Smart casual dress'},
+    ]},
+  ],
+  docs: [
+    {type:'flight', icon:'✈️', title:'Air France — Outbound', sub:'SFO → CDG', info:{Flight:'AF 123', Date:'Jun 14, 2025', Departs:'10:45 AM', Conf:'AF7X9K2'}, status:'confirmed'},
+    {type:'flight', icon:'✈️', title:'Air France — Return', sub:'CDG → SFO', info:{Flight:'AF 456', Date:'Jun 22, 2025', Departs:'11:15 AM', Conf:'AF7X9K2'}, status:'confirmed'},
+    {type:'hotel', icon:'🏨', title:'Hotel Le Marais', sub:'Paris 3rd Arrondissement', info:{Check_in:'Jun 14', Check_out:'Jun 22', Room:'Deluxe Double', Conf:'HLM29847'}, status:'confirmed'},
+    {type:'attraction', icon:'🎫', title:'Louvre Museum (x2)', sub:'Skip-the-line tickets', info:{Date:'Jun 16, 2025', Time:'11:00 AM', Price:'€44 total', Conf:'LVR-2025-4421'}, status:'confirmed'},
+    {type:'attraction', icon:'🎫', title:'Eiffel Tower Summit', sub:'2 adult tickets', info:{Date:'Jun 18, 2025', Time:'6:30 PM', Price:'€58 total', Conf:'ET-889243'}, status:'confirmed'},
+    {type:'transport', icon:'🚇', title:'Paris Visite Pass (x2)', sub:'5-day metro unlimited', info:{Zones:'1-3', Valid:'Jun 14-18', Price:'€78 total', Notes:'Includes RER B'}, status:'confirmed'},
+    {type:'doc', icon:'📋', title:'Travel Insurance', sub:'WorldNomads — 2 travelers', info:{Policy:'WN-7823-0099', Valid:'Jun 14-22', Coverage:'$1M medical', Phone:'+1-800-555-0199'}, status:'confirmed'},
+  ],
+  packItems: [
+    {name:'Passport', cat:'📄 Documents', checked:true},
+    {name:'Travel Insurance Card', cat:'📄 Documents', checked:true},
+    {name:'Euros (€300 cash)', cat:'📄 Documents', checked:false},
+    {name:'Power Adapter (Type E/F)', cat:'📱 Tech & Electronics', checked:true},
+    {name:'Phone Charger', cat:'📱 Tech & Electronics', checked:false},
+    {name:'Portable Power Bank', cat:'📱 Tech & Electronics', checked:false},
+    {name:'Comfortable Walking Shoes', cat:'👔 Clothing', checked:false},
+    {name:'Light Rain Jacket', cat:'👔 Clothing', checked:false},
+    {name:'Smart Casual Outfit (dinner)', cat:'👔 Clothing', checked:false},
+    {name:'Sunscreen SPF 50', cat:'💊 Health & Toiletries', checked:false},
+    {name:'Medications', cat:'💊 Health & Toiletries', checked:false},
+    {name:'Sunglasses', cat:'🎒 Accessories', checked:true},
+  ],
+  expenses: [
+    {icon:'✈️', name:'Air France Tickets', cat:'Flights', date:'May 1', amount:1800},
+    {icon:'🏨', name:'Hotel Le Marais (8 nights)', cat:'Accommodation', date:'May 5', amount:1440},
+    {icon:'🎫', name:'Louvre Museum Tickets (x2)', cat:'Activities', date:'Jun 1', amount:48},
+    {icon:'🎫', name:'Eiffel Tower Summit (x2)', cat:'Activities', date:'Jun 1', amount:72},
+  ],
+  totalBudget: 6000,
+  hotel: { name:'Hotel Le Marais', address:'3 Rue de Bretagne, 75003 Paris', checkIn:'2025-06-14', checkOut:'2025-06-22', conf:'HLM29847', phone:'', lat:48.861, lng:2.359 },
+};
+
+const EMPTY_DATA = () => ({ days:[], docs:[], packItems:[], expenses:[], totalBudget:0, hotel:null });
+
+// ——— LIVE STATE (loaded from storage on init) ———
+let trips = {
+  paris: {name:'🇫🇷 Paris Getaway', sub:'City of Lights — Spring Escape', lat:48.8566, lng:2.3522, destination:'Paris, France', start:'2025-06-14', end:'2025-06-22', travelers:'2', totalBudget:6000},
+  tokyo: {name:'🇯🇵 Tokyo Adventure', sub:'Neon Nights & Cherry Blossoms', lat:35.6762, lng:139.6503, destination:'Tokyo, Japan', start:'', end:'', travelers:'2', totalBudget:0},
+  nyc:   {name:'🗽 NYC Weekend', sub:'The City That Never Sleeps', lat:40.7128, lng:-74.0060, destination:'New York, USA', start:'', end:'', travelers:'2', totalBudget:0},
+};
+let tripData = {
+  paris: JSON.parse(JSON.stringify(DEFAULT_PARIS)),
+  tokyo: EMPTY_DATA(),
+  nyc:   EMPTY_DATA(),
+};
+// ── Global fetch rate-limiter — prevents startup crash in WebView2 ──
+const _fetchQueue = { active: 0, max: 4, pending: [] };
+const _origFetch = window.fetch.bind(window);
+window.fetch = function(input, init) {
+  return new Promise((resolve, reject) => {
+    function run() {
+      _fetchQueue.active++;
+      _origFetch(input, init)
+        .then(r  => { _fetchQueue.active--; _drain(); resolve(r); })
+        .catch(e => { _fetchQueue.active--; _drain(); reject(e); });
+    }
+    if (_fetchQueue.active < _fetchQueue.max) run();
+    else _fetchQueue.pending.push(run);
+  });
+};
+function _drain() {
+  if (_fetchQueue.pending.length && _fetchQueue.active < _fetchQueue.max)
+    _fetchQueue.pending.shift()();
+}
+
+let currentTripId = 'paris';
+
+// Shortcut to current trip's data
+function cd() { return tripData[currentTripId]; }
+
+// ——— PERSISTENCE ———
+function save() {
+  try {
+    localStorage.setItem('voy_trips', JSON.stringify(trips));
+    localStorage.setItem('voy_data',  JSON.stringify(tripData));
+    localStorage.setItem('voy_cur',   currentTripId);
+  } catch(e) { console.error('Save error:', e); }
+}
+
+function loadFromStorage() {
+  try {
+    const t = localStorage.getItem('voy_trips');
+    const d = localStorage.getItem('voy_data');
+    const c = localStorage.getItem('voy_cur');
+    if (t) trips    = JSON.parse(t);
+    if (d) tripData = JSON.parse(d);
+    if (c && trips[c]) currentTripId = c;
+  } catch(e) { console.error('Load error:', e); }
+  const savedKey = localStorage.getItem('voy_apikey');
+  if (savedKey) voyagerApiKey = savedKey;
+  const savedTransitKey = localStorage.getItem('voy_transitkey');
+  if (savedTransitKey) transitlandKey = savedTransitKey;
+  const savedFirecrawlKey = localStorage.getItem('voy_firecrawl');
+  if (savedFirecrawlKey) firecrawlKey = savedFirecrawlKey;
+  rebuildTripSelect();
+}
+
+function rebuildTripSelect() {
+  const sel = document.getElementById('tripSelect');
+  sel.innerHTML = '';
+  for (const [id, t] of Object.entries(trips)) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = t.name;
+    sel.appendChild(opt);
+  }
+  sel.value = currentTripId;
+}
+
+// ——— NAVIGATION ———
+function showPanel(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const titles = {overview:'Overview', itinerary:'Itinerary', map:'Map & Routes', discover:'Discover Places', vault:'Documents & Tickets', budget:'Budget Tracker', packing:'Packing List'};
+  document.getElementById('panelTitle').textContent = titles[name] || name;
+  document.getElementById('aiResponse').classList.remove('visible');
+  if (name === 'map') {
+    if (!leafletMap) initMap();
+    else setTimeout(() => leafletMap.invalidateSize(), 50);
+    // Show hotel quick-add button if hotel is set
+    const qa = document.getElementById('hotelQuickAdd');
+    if (qa) qa.style.display = cd().hotel?.name ? 'block' : 'none';
+  }
+  if (name === 'itinerary') renderItinerary();
+  if (name === 'overview')  { updateOverview(); renderHotelCard(); refreshHeroLiveData(); }
+  if (name === 'vault')     renderDocs('all');
+  if (name === 'packing')   renderPacking();
+  if (name === 'budget')    renderBudget();
+  if (name === 'discover')  openDiscoverPanel();
+}
+
+// ——— MODAL ———
+function openModal(id) {
+  if (id === 'eventModal') populateEventDays();
+  document.getElementById(id + '-overlay').classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id + '-overlay').classList.remove('open');
+  if (id === 'tripModal') closeDestDropdown();
+}
+
+// ——— TOAST ———
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ——— DATE HELPERS ———
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso + 'T12:00:00').toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'});
+  } catch(e) { return iso; }
+}
+function nightsBetween(start, end) {
+  if (!start || !end) return null;
+  const n = Math.round((new Date(end) - new Date(start)) / 86400000);
+  return n > 0 ? n : null;
+}
+
+// ——— OVERVIEW ———
+function updateOverview() {
+  const data = cd();
+  const trip = trips[currentTripId] || {};
+
+  // Hero title/subtitle
+  const ht = document.getElementById('heroTitle');
+  const hs = document.getElementById('heroSubtitle');
+  if (ht) ht.textContent = trip.name || '';
+  if (hs) hs.textContent = trip.destination || trip.sub || '';
+
+  // Hero meta row — built from trip fields
+  const heroMeta = document.getElementById('heroMeta');
+  if (heroMeta) {
+    const nights    = nightsBetween(trip.start, trip.end);
+    const budget    = trip.totalBudget || data.totalBudget || 0;
+    const metaItems = [];
+    if (trip.start)    metaItems.push(['Departure', fmtDate(trip.start)]);
+    if (trip.end)      metaItems.push(['Return',    fmtDate(trip.end)]);
+    if (nights)        metaItems.push(['Duration',  nights + ' Night' + (nights !== 1 ? 's' : '')]);
+    if (trip.travelers) metaItems.push(['Travelers', trip.travelers + ' Adult' + (parseInt(trip.travelers) !== 1 ? 's' : '')]);
+    if (budget > 0)    metaItems.push(['Budget',    '$' + budget.toLocaleString()]);
+    if (trip.destination && !trip.start) metaItems.push(['Destination', trip.destination]);
+
+    heroMeta.innerHTML = metaItems.map(([label, val]) => `
+      <div class="trip-meta-item">
+        <span>${label}</span>
+        <span>${val}</span>
+      </div>`).join('');
+  }
+
+  // Stats
+  const totalEvents   = data.days.reduce((a, d) => a + d.events.length, 0);
+  const restaurants   = data.days.reduce((a, d) => a + d.events.filter(e => e.type === 'food').length, 0);
+  const tickets       = data.docs.filter(d => d.type === 'attraction').length;
+  const spent         = data.expenses.reduce((a, e) => a + e.amount, 0);
+  const q = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  q('statEvents',      totalEvents);
+  q('statRestaurants', restaurants);
+  q('statTickets',     tickets);
+  q('statSpent',       '$' + spent.toLocaleString());
+
+  // First day agenda
+  const agendaEl = document.getElementById('todayAgenda');
+  if (agendaEl) {
+    const TC = {food:'event-type-food', hotel:'event-type-hotel', transport:'event-type-transport'};
+    const TG = {Flight:'tag-transport', Transport:'tag-transport', Food:'tag-food', Hotel:'tag-hotel', Attraction:'tag-attraction', Other:'tag-attraction'};
+    if (data.days.length === 0) {
+      agendaEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No events yet — <span style="color:var(--accent);cursor:pointer" onclick="openModal('eventModal')">add your first event</span></div>`;
+    } else {
+      agendaEl.innerHTML = data.days[0].events.slice(0, 4).map(ev => `
+        <div class="event ${TC[ev.type]||''}" style="cursor:default">
+          <div class="event-header">
+            <span class="event-time">${ev.time}</span>
+            <span class="event-name">${ev.name}</span>
+            <span class="event-tag ${TG[ev.tag]||'tag-attraction'}">${ev.tag}</span>
+          </div>
+          ${ev.note ? `<div class="event-note">${ev.note}</div>` : ''}
+        </div>`).join('');
+    }
+  }
+
+  // Dynamic reminders
+  renderReminders(data, trip);
+}
+
+function renderReminders(data, trip) {
+  const area = document.getElementById('remindersArea');
+  if (!area) return;
+  const reminders = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Trip start countdown
+  if (trip.start) {
+    const dep = new Date(trip.start + 'T00:00:00');
+    const diff = Math.round((dep - today) / 86400000);
+    if (diff > 0)       reminders.push({color:'gold',   icon:'✈️', text:`Departure in ${diff} day${diff!==1?'s':''} — ${fmtDate(trip.start)}`});
+    else if (diff === 0) reminders.push({color:'green',  icon:'🎉', text:`Trip starts today! Have a great journey.`});
+    else if (diff > -30) reminders.push({color:'accent', icon:'🌍', text:`Trip in progress — ${Math.abs(diff)} day${Math.abs(diff)!==1?'s':''} since departure`});
+  }
+
+  // Hotel check-in reminder
+  const h = data.hotel;
+  if (h?.name && h.checkIn) {
+    const ci = new Date(h.checkIn + 'T00:00:00');
+    const diff = Math.round((ci - today) / 86400000);
+    if (diff === 1) reminders.push({color:'gold',  icon:'🏨', text:`Hotel check-in tomorrow — ${h.name}`});
+    if (diff === 0) reminders.push({color:'green', icon:'🏨', text:`Hotel check-in today — ${h.name}`});
+    if (h.checkOut) {
+      const co = new Date(h.checkOut + 'T00:00:00');
+      const diffOut = Math.round((co - today) / 86400000);
+      if (diffOut === 1) reminders.push({color:'coral', icon:'🏨', text:`Hotel check-out tomorrow — don't forget to pack!`});
+    }
+  }
+
+  // Unpacked items reminder
+  const unpacked = data.packItems.filter(i => !i.checked).length;
+  const total    = data.packItems.length;
+  if (total > 0 && unpacked > 0 && trip.start) {
+    const dep = new Date(trip.start + 'T00:00:00');
+    const diff = Math.round((dep - today) / 86400000);
+    if (diff <= 3 && diff >= 0) reminders.push({color:'coral', icon:'🎒', text:`${unpacked} packing item${unpacked!==1?'s':''} still unchecked — trip is in ${diff} day${diff!==1?'s':''}!`});
+  }
+
+  // Budget warning
+  if (data.totalBudget > 0) {
+    const spent = data.expenses.reduce((a,e) => a + e.amount, 0);
+    const pct = spent / data.totalBudget;
+    if (pct >= 1)    reminders.push({color:'coral',  icon:'💸', text:`Over budget by $${(spent - data.totalBudget).toLocaleString()}`});
+    else if (pct >= 0.9) reminders.push({color:'gold', icon:'💰', text:`90% of budget used — $${(data.totalBudget - spent).toLocaleString()} remaining`});
+  }
+
+  // No hotel set
+  if (!h?.name && data.days.length > 0) {
+    reminders.push({color:'text3', icon:'🏨', text:`No hotel added yet — <span style="color:var(--gold);cursor:pointer" onclick="openHotelModal()">add it now →</span>`});
+  }
+
+  // No events yet
+  if (data.days.length === 0) {
+    reminders.push({color:'text3', icon:'📅', text:`Itinerary is empty — <span style="color:var(--accent);cursor:pointer" onclick="openModal('eventModal')">start planning →</span>`});
+  }
+
+  // Default fallback
+  if (reminders.length === 0) {
+    reminders.push({color:'text3', icon:'✅', text:`Everything looks good! Your trip is well planned.`});
+  }
+
+  const colorBg = {gold:'rgba(232,184,75,0.08)', coral:'rgba(240,112,96,0.08)', green:'rgba(61,202,114,0.08)', accent:'rgba(79,142,247,0.08)', text3:'var(--surface2)'};
+  const colorBorder = {gold:'rgba(232,184,75,0.2)', coral:'rgba(240,112,96,0.2)', green:'rgba(61,202,114,0.2)', accent:'rgba(79,142,247,0.2)', text3:'var(--border)'};
+  const colorText = {gold:'var(--gold)', coral:'var(--coral)', green:'var(--green)', accent:'var(--accent)', text3:'var(--text2)'};
+
+  area.innerHTML = reminders.slice(0, 5).map(r =>
+    `<div style="padding:9px 12px;background:${colorBg[r.color]||colorBg.text3};border:1px solid ${colorBorder[r.color]||colorBorder.text3};border-radius:8px;font-size:12px;color:${colorText[r.color]||'var(--text2)'}">
+      ${r.icon} ${r.text}
+    </div>`
+  ).join('');
+}
+function renderHotelCard() {
+  const h = cd().hotel;
+  const el = document.getElementById('hotelCardContent');
+  if (!el) return;
+
+  // Show/hide the hotel quick-add button in map panel
+  const qa = document.getElementById('hotelQuickAdd');
+  if (qa) qa.style.display = h?.name ? 'block' : 'none';
+
+  if (!h?.name) {
+    el.innerHTML = `<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">
+      No hotel added yet. <span style="color:var(--gold);cursor:pointer" onclick="openModal('hotelModal')">+ Add hotel →</span>
+    </div>`;
+    return;
+  }
+
+  const nightCount = (h.checkIn && h.checkOut)
+    ? Math.round((new Date(h.checkOut) - new Date(h.checkIn)) / 86400000)
+    : null;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:16px;font-weight:700;color:var(--gold);margin-bottom:4px">🏨 ${h.name}</div>
+        ${h.address ? `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">📍 ${h.address}</div>` : ''}
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          ${h.checkIn  ? `<div style="font-size:11px"><span style="color:var(--text3);display:block;margin-bottom:2px">CHECK-IN</span><span style="font-weight:600">${new Date(h.checkIn + 'T12:00:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})}</span></div>` : ''}
+          ${h.checkOut ? `<div style="font-size:11px"><span style="color:var(--text3);display:block;margin-bottom:2px">CHECK-OUT</span><span style="font-weight:600">${new Date(h.checkOut + 'T12:00:00').toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})}</span></div>` : ''}
+          ${nightCount ? `<div style="font-size:11px"><span style="color:var(--text3);display:block;margin-bottom:2px">DURATION</span><span style="font-weight:600">${nightCount} night${nightCount !== 1 ? 's' : ''}</span></div>` : ''}
+          ${h.conf     ? `<div style="font-size:11px"><span style="color:var(--text3);display:block;margin-bottom:2px">CONF #</span><span style="font-weight:600;color:var(--accent)">${h.conf}</span></div>` : ''}
+          ${h.phone    ? `<div style="font-size:11px"><span style="color:var(--text3);display:block;margin-bottom:2px">PHONE</span><span style="font-weight:600">${h.phone}</span></div>` : ''}
+        </div>
+      </div>
+      <button class="btn-sm" onclick="addHotelToRoute()" style="white-space:nowrap;flex-shrink:0">🗺️ Add to Route</button>
+    </div>`;
+}
+
+function openHotelModal() {
+  const h = cd().hotel || {};
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setVal('hotelName',    h.name);
+  setVal('hotelAddress', h.address);
+  setVal('hotelCheckIn', h.checkIn);
+  setVal('hotelCheckOut',h.checkOut);
+  setVal('hotelConf',    h.conf);
+  setVal('hotelPhone',   h.phone);
+  openModal('hotelModal');
+}
+
+async function saveHotel() {
+  try {
+  const name    = document.getElementById('hotelName').value.trim();
+  const address = document.getElementById('hotelAddress').value.trim();
+  if (!name) { showToast('Please enter the hotel name.'); return; }
+
+  const hotel = {
+    name,
+    address,
+    checkIn:  document.getElementById('hotelCheckIn').value,
+    checkOut: document.getElementById('hotelCheckOut').value,
+    conf:     document.getElementById('hotelConf').value.trim(),
+    phone:    document.getElementById('hotelPhone').value.trim(),
+    lat: null, lng: null,
+  };
+
+  // Geocode the address for map routing
+  if (address) {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`, {headers:{'Accept-Language':'en'}});
+      const data = await r.json();
+      if (data.length > 0) { hotel.lat = parseFloat(data[0].lat); hotel.lng = parseFloat(data[0].lon); }
+    } catch(e) {}
+  }
+
+  cd().hotel = hotel;
+  save();
+  renderHotelCard();
+  closeModal('hotelModal');
+  showToast('✓ Hotel saved!');
+}
+
+async function addHotelToRoute() {
+  try {
+  const h = cd().hotel;
+  if (!h?.name) {
+    openHotelModal();
+    showToast('Set your hotel first.');
+    return;
+  }
+
+  // Navigate to map panel
+  const mapNavItem = document.querySelectorAll('.nav-item')[2];
+  showPanel('map', mapNavItem);
+  mapNavItem.classList.add('active');
+  if (!leafletMap) initMap();
+
+  // Use geocoded coords if available, else geocode now
+  let lat = h.lat, lng = h.lng;
+  if (!lat && h.address) {
+    showToast('⏳ Locating hotel...');
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(h.address)}&format=json&limit=1`, {headers:{'Accept-Language':'en'}});
+      const data = await r.json();
+      if (data.length > 0) {
+        lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon);
+        cd().hotel.lat = lat; cd().hotel.lng = lng; save();
+      }
+    } catch(e) {}
+  } else if (!lat) {
+    showToast('Add a hotel address to use it for routing.');
+    return;
+  }
+
+  if (!lat) { showToast('Could not locate hotel on map.'); return; }
+
+  // Insert hotel as first stop (or add to end)
+  const hotelStop = { name: '🏨 ' + h.name, lat, lng };
+  const existing = routeStops.find(s => s.name === hotelStop.name);
+  if (!existing) {
+    routeStops.unshift(hotelStop);
+    renderRouteStops();
+    setTimeout(() => { leafletMap.setView([lat, lng], 15); addMapMarker(lat, lng, '🏨 ' + h.name, '#e8b84b'); }, 150);
+    showToast('🏨 Hotel added as starting point!');
+  } else {
+    showToast('Hotel is already in the route.');
+  }
+}
+function switchTrip(val) {
+  currentTripId = val;
+  const t = trips[val];
+  if (!t) return;
+  updateOverview();
+  renderItinerary();
+  renderDocs('all');
+  renderPacking();
+  renderBudget();
+  renderHotelCard();
+  syncDiscoverLocation();
+  discoverLastLocation = ''; // force discover to refresh for new trip
+  discoverAgentRunning  = false; // reset stuck flag
+  // If discover panel is currently visible, refresh it
+  if (document.getElementById('panel-discover')?.classList.contains('active')) {
+    openDiscoverPanel();
+  }
+  routeStops = [];
+  renderRouteStops();
+  clearAllRoute();
+  stopLiveTracker();
+  if (leafletMap && t) leafletMap.setView([t.lat, t.lng], 13);
+  save();
+  showToast('Switched to ' + t.name);
+  // Refresh hero live data for the new trip
+  setTimeout(refreshHeroLiveData, 200);
+}
+
+function getDestEmoji(dest) {
+  const d = dest.toLowerCase();
+  if (d.includes('japan') || d.includes('tokyo') || d.includes('osaka'))       return '🇯🇵';
+  if (d.includes('france') || d.includes('paris'))                             return '🇫🇷';
+  if (d.includes('italy') || d.includes('rome') || d.includes('milan'))        return '🇮🇹';
+  if (d.includes('spain') || d.includes('madrid') || d.includes('barcelona'))  return '🇪🇸';
+  if (d.includes('uk') || d.includes('london') || d.includes('england'))       return '🇬🇧';
+  if (d.includes('usa') || d.includes('new york') || d.includes('nyc'))        return '🗽';
+  if (d.includes('thailand') || d.includes('bangkok'))                         return '🇹🇭';
+  if (d.includes('bali') || d.includes('indonesia'))                           return '🇮🇩';
+  if (d.includes('greece') || d.includes('santorini') || d.includes('athens')) return '🇬🇷';
+  if (d.includes('australia') || d.includes('sydney'))                         return '🇦🇺';
+  if (d.includes('mexico') || d.includes('cancun'))                            return '🇲🇽';
+  if (d.includes('portugal') || d.includes('lisbon'))                          return '🇵🇹';
+  return '✈️';
+}
+
+function saveTrip() {
+  const name      = document.getElementById('newTripName').value.trim();
+  const dest      = document.getElementById('newTripDest').value.trim();
+  const start     = document.getElementById('newTripStart').value;
+  const end       = document.getElementById('newTripEnd').value;
+  const travelers = document.getElementById('newTripTravelers').value;
+  const budget    = document.getElementById('newTripBudget').value;
+  if (!name || !dest) { showToast('Please enter a trip name and destination.'); return; }
+
+  const id = 'trip_' + Date.now();
+  const emoji = getDestEmoji(dest);
+
+  trips[id] = {
+    name: emoji + ' ' + name,
+    sub: dest + (start && end ? ` · ${fmtDate(start)} → ${fmtDate(end)}` : ''),
+    lat: destSelectedLat || 48.8566, lng: destSelectedLng || 2.3522,
+    destination: dest, start, end,
+    travelers: travelers || '2', totalBudget: parseFloat(budget) || 0,
+  };
+  destSelectedLat = null; destSelectedLng = null; // reset autocomplete selection
+  const emptyData = EMPTY_DATA();
+  emptyData.totalBudget = parseFloat(budget) || 0;
+  tripData[id] = emptyData;
+
+  const sel = document.getElementById('tripSelect');
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = emoji + ' ' + name;
+  sel.appendChild(opt);
+  sel.value = id;
+
+  ['newTripName','newTripDest','newTripStart','newTripEnd','newTripBudget'].forEach(f => { const el = document.getElementById(f); if (el) el.value = ''; });
+  const tv = document.getElementById('newTripTravelers'); if (tv) tv.value = '2';
+
+  closeModal('tripModal');
+  switchTrip(id);
+  save();
+  showToast('✓ Trip "' + name + '" created!');
+  geocodeDest(dest, id);
+}
+
+async function geocodeDest(dest, tripId) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dest)}&format=json&limit=1`, {headers:{'Accept-Language':'en'}});
+    const data = await r.json();
+    if (data.length > 0 && trips[tripId]) {
+      trips[tripId].lat = parseFloat(data[0].lat);
+      trips[tripId].lng = parseFloat(data[0].lon);
+      if (currentTripId === tripId && leafletMap) leafletMap.setView([trips[tripId].lat, trips[tripId].lng], 13);
+      save();
+    }
+  } catch(e) {}
+}
+
+function deleteCurrentTrip() {
+  const sel = document.getElementById('tripSelect');
+  if (sel.options.length <= 1) { showToast('Cannot delete the last trip.'); return; }
+  const tripName = trips[currentTripId]?.name || 'this trip';
+  _voyConfirm(`Delete "${tripName}"?`, 'All itinerary and packing data will be permanently removed.', () => {
+delete trips[currentTripId];
+  delete tripData[currentTripId];
+  const opt = sel.querySelector(`option[value="${currentTripId}"]`);
+  if (opt) opt.remove();
+  currentTripId = sel.options[0].value;
+  sel.value = currentTripId;
+  switchTrip(currentTripId);
+  save();
+  showToast('Trip deleted.');
+}
+  });
+
+
+// ——— ITINERARY ———
+const TAG_CLASSES = {Flight:'tag-transport', Transport:'tag-transport', Food:'tag-food', Hotel:'tag-hotel', Attraction:'tag-attraction', Other:'tag-attraction'};
+const TYPE_CLASSES = {food:'event-type-food', hotel:'event-type-hotel', transport:'event-type-transport'};
+const TAG_NAMES   = {attraction:'Attraction', food:'Food', hotel:'Hotel', transport:'Transport', other:'Other'};
+
+function populateEventDays() {
+  const data = cd();
+  const sel = document.getElementById('eventDaySelect');
+  if (!sel) return;
+  sel.innerHTML = data.days.map((d, i) =>
+    `<option value="${i}">Day ${d.dayNum} — ${d.date}</option>`
+  ).join('') + '<option value="new">➕ New Day</option>';
+  onDaySelectChange();
+}
+
+function onDaySelectChange() {
+  const val = document.getElementById('eventDaySelect')?.value;
+  const g = document.getElementById('newDayTitleGroup');
+  if (g) g.style.display = val === 'new' ? 'block' : 'none';
+}
+
+function renderItinerary() {
+  const data = cd();
+  const container = document.getElementById('itineraryContent');
+  const meta      = document.getElementById('itineraryMeta');
+  if (!container) return;
+
+  const totalDays   = data.days.length;
+  const totalEvents = data.days.reduce((a, d) => a + d.events.length, 0);
+  if (meta) meta.textContent = totalDays > 0 ? `${totalDays} day${totalDays>1?'s':''} · ${totalEvents} event${totalEvents!==1?'s':''}` : 'No events planned yet';
+
+  if (data.days.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text3)">
+      <div style="font-size:48px;margin-bottom:12px">📅</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-bottom:8px">No itinerary yet</div>
+      <div style="font-size:13px;margin-bottom:20px">Start building your trip day by day</div>
+      <button class="btn-sm primary" onclick="openModal('eventModal')">+ Add First Event</button>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = data.days.map((day, di) => `
+    <div class="day-block">
+      <div class="day-header">
+        <span class="day-badge">Day ${day.dayNum}</span>
+        <span class="day-date">${day.date}</span>
+        ${day.budget ? `<span class="day-budget">${day.budget}</span>` : ''}
+        <button onclick="removeDay(${di})" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='var(--coral)'" onmouseout="this.style.color='var(--text3)'">✕ day</button>
+      </div>
+      <div class="timeline">
+        ${day.events.map((ev, ei) => `
+          <div class="event ${TYPE_CLASSES[ev.type]||''}">
+            <div class="event-header">
+              <span class="event-time">${ev.time}</span>
+              <span class="event-name">${ev.name}</span>
+              <span class="event-tag ${TAG_CLASSES[ev.tag]||'tag-attraction'}">${ev.tag}</span>
+              <div class="event-actions">
+                <button class="event-btn" onclick="removeEvent(${di},${ei})" style="color:var(--coral)">✕</button>
+              </div>
+            </div>
+            ${ev.note ? `<div class="event-note">${ev.note}</div>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>`).join('') +
+    `<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">
+      <span style="color:var(--accent);cursor:pointer" onclick="openModal('eventModal')">+ Add more events</span>
+    </div>`;
+}
+
+function saveEvent() {
+  const dayIdx = document.getElementById('eventDaySelect')?.value;
+  const time   = document.getElementById('eventTime')?.value   || '12:00';
+  const name   = document.getElementById('eventName')?.value.trim();
+  const type   = document.getElementById('eventType')?.value   || 'attraction';
+  const cost   = document.getElementById('eventCost')?.value   || '';
+  const note   = document.getElementById('eventNotes')?.value.trim() || '';
+  if (!name) { showToast('Please enter an event name.'); return; }
+
+  const data = cd();
+  const ev = {time, name, type, tag: TAG_NAMES[type] || 'Attraction', note};
+
+  if (dayIdx === 'new') {
+    const title = document.getElementById('newDayTitle')?.value.trim() || `Day ${data.days.length + 1}`;
+    data.days.push({dayNum: data.days.length + 1, date: title, budget: cost ? `Est. ${cost}` : '', events: [ev]});
+  } else {
+    const idx = parseInt(dayIdx);
+    data.days[idx].events.push(ev);
+    data.days[idx].events.sort((a, b) => a.time.localeCompare(b.time));
+  }
+
+  renderItinerary();
+  updateOverview();
+  save();
+  closeModal('eventModal');
+  ['eventName','eventNotes','eventCost','newDayTitle'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const et = document.getElementById('eventTime'); if (et) et.value = '10:00';
+  showToast('✓ Event added to itinerary!');
+}
+
+function removeDay(di) {
+  _voyConfirm('Remove this day?', 'All events in this day will be deleted.', () => { _doRemoveDay(idx); }); return;
+  const data = cd();
+  data.days.splice(di, 1);
+  data.days.forEach((d, i) => d.dayNum = i + 1);
+  renderItinerary(); updateOverview(); save();
+}
+
+function removeEvent(di, ei) {
+  const data = cd();
+  data.days[di].events.splice(ei, 1);
+  if (data.days[di].events.length === 0) {
+    data.days.splice(di, 1);
+    data.days.forEach((d, i) => d.dayNum = i + 1);
+  }
+  renderItinerary(); updateOverview(); save();
+}
+
+// ——— MAP (CartoDB tiles + OSRM real routing + Transitland transit) ———
+let routeStops = [];
+let routeTransportMode = 'walking';
+let stopInputTimer = null;
+let transitlandKey = '';
+let liveTrackerInterval = null;
+let transitStopMarkers = [];
+
+const MODE_NOTES = {
+  walking: '🚶 Walking route — follows footpaths and pedestrian streets. Avoids all motorways and highways.',
+  cycling: '🚴 Cycling route — uses bike lanes and cycle paths. Avoids motorways; prefers low-traffic roads.',
+  driving: '🚗 Driving route — fastest road route. Uses all road types including motorways.',
+  transit: '🚌 Transit route — road path for bus/metro context. Add a Transitland key (🔑) for live schedules & vehicle tracking.',
+};
+
+// OSRM profile per mode (foot avoids motorways; cycling avoids motorways; car uses all roads)
+const OSRM_PROFILE = { walking:'foot', cycling:'cycling', driving:'car', transit:'car' };
+const MODE_COLOR   = { walking:'#2dd4b5', cycling:'#e8b84b', driving:'#4f8ef7', transit:'#7c5cbf' };
+const MODE_LABEL   = { walking:'🚶 Walking', cycling:'🚴 Cycling', driving:'🚗 Driving', transit:'🚌 Transit' };
+
+function initMap() {
+  const trip = trips[currentTripId];
+  const center = trip ? [trip.lat, trip.lng] : [48.8566, 2.3522];
+  leafletMap = L.map('leaflet-map', { zoomControl: true }).setView(center, 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd', maxZoom: 19,
+  }).addTo(leafletMap);
+  // Close suggestions when clicking map
+  leafletMap.on('click', hideSuggestions);
+}
+
+function setTransportMode(mode) {
+  routeTransportMode = mode;
+  document.querySelectorAll('[id^="mode-"]').forEach(b => b.classList.remove('primary'));
+  const btn = document.getElementById('mode-' + mode);
+  if (btn) btn.classList.add('primary');
+  const rm = document.getElementById('routeMode');
+  if (rm) rm.textContent = MODE_LABEL[mode] || mode;
+  const note = document.getElementById('modeNote');
+  if (note) note.textContent = MODE_NOTES[mode] || '';
+  // Show/hide transit panel
+  const tp = document.getElementById('transitPanel');
+  if (tp) tp.style.display = mode === 'transit' ? 'block' : 'none';
+}
+
+// ——— STOP GEOCODING SEARCH ———
+function onStopInputChange() {
+  clearTimeout(stopInputTimer);
+  const q = document.getElementById('stopInput').value.trim();
+  if (q.length < 3) { hideSuggestions(); return; }
+  stopInputTimer = setTimeout(() => fetchStopSuggestions(q), 350);
+}
+
+async function fetchStopSuggestions(q) {
+  try {
+  const trip = trips[currentTripId];
+  const near = trip?.destination || '';
+  const query = near ? `${q}, ${near}` : q;
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await r.json();
+    showSuggestions(data);
+  } catch(e) { hideSuggestions(); }
+}
+
+function showSuggestions(results) {
+  const box = document.getElementById('stopSuggestions');
+  if (!results.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = results.map(r => {
+    const parts = r.display_name.split(',');
+    const safeName = encodeURIComponent(parts[0].trim());
+    return `<div onclick="selectSuggestion('${safeName}','${r.lat}','${r.lon}')"
+      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <div style="font-weight:500;color:var(--text)">${parts[0].trim()}</div>
+      <div style="color:var(--text3);font-size:10px;margin-top:1px">${parts.slice(1,3).join(',').trim()}</div>
+    </div>`;
+  }).join('');
+}
+
+function hideSuggestions() {
+  const box = document.getElementById('stopSuggestions');
+  if (box) box.style.display = 'none';
+}
+
+function selectSuggestion(nameEnc, lat, lng) {
+  const name = decodeURIComponent(nameEnc);
+  hideSuggestions();
+  document.getElementById('stopInput').value = '';
+  routeStops.push({ name, lat: parseFloat(lat), lng: parseFloat(lng) });
+  renderRouteStops();
+  showToast('📍 Added: ' + name);
+}
+
+async function addStopFromSearch() {
+  try {
+  hideSuggestions();
+  const inp = document.getElementById('stopInput');
+  const q = inp.value.trim();
+  if (!q) return;
+  inp.value = '';
+  const trip = trips[currentTripId];
+  const near = trip?.destination || '';
+  const query = near ? `${q}, ${near}` : q;
+  showToast('⏳ Searching...');
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await r.json();
+    if (data.length > 0) {
+      routeStops.push({ name: q, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+      renderRouteStops();
+      if (leafletMap) leafletMap.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 15);
+      showToast('📍 Added: ' + q);
+    } else {
+      showToast('Location not found. Try a more specific name or address.');
+    }
+  } catch(e) { showToast('Search failed. Check your connection.'); }
+}
+
+function renderRouteStops() {
+  const container = document.getElementById('routeStopsContainer');
+  if (!container) return;
+  const sc = document.getElementById('routeStopCount');
+  if (sc) sc.textContent = routeStops.length;
+  if (routeStops.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">No stops yet — search for locations above.</div>`;
+    return;
+  }
+  container.innerHTML = `<div class="route-stops" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">` +
+    routeStops.map((s, i) => `
+      <div class="route-stop">
+        <div class="stop-num" style="background:${MODE_COLOR[routeTransportMode]||'var(--accent)'}">${i+1}</div>
+        <div style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📍 ${s.name}</div>
+        <span class="stop-remove" onclick="removeRouteStop(${i})">✕</span>
+      </div>`).join('') + `</div>`;
+}
+
+function removeRouteStop(i) {
+  routeStops.splice(i, 1);
+  renderRouteStops();
+  clearAllRoute();
+}
+
+// ——— MAP MARKERS ———
+function addMapMarker(lat, lng, label, color) {
+  if (!leafletMap) return null;
+  const bg = color || MODE_COLOR[routeTransportMode] || '#4f8ef7';
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="background:${bg};color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5)">${label}</div>`,
+    iconAnchor: [0, 0],
+  });
+  const m = L.marker([lat, lng], { icon }).addTo(leafletMap);
+  mapMarkers.push(m);
+  return m;
+}
+
+function clearMapMarkers() {
+  mapMarkers.forEach(m => { try { leafletMap.removeLayer(m); } catch(e){} });
+  mapMarkers = [];
+  clearRouteLines();
+  clearTransitStopMarkers();
+}
+
+function clearRouteLines() {
+  if (mapRouteLayer) {
+    if (Array.isArray(mapRouteLayer)) mapRouteLayer.forEach(l => { try { leafletMap.removeLayer(l); } catch(e){} });
+    else { try { leafletMap.removeLayer(mapRouteLayer); } catch(e){} }
+    mapRouteLayer = null;
+  }
+}
+
+function clearTransitStopMarkers() {
+  transitStopMarkers.forEach(m => { try { leafletMap.removeLayer(m); } catch(e){} });
+  transitStopMarkers = [];
+}
+
+function clearAllRoute() {
+  clearMapMarkers();
+  ['routeDistance','routeDuration'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+  const rl = document.getElementById('routeLegs');
+  if (rl) rl.innerHTML = '<div style="font-size:12px;color:var(--text3)">No route calculated yet.</div>';
+  const ta = document.getElementById('transitStopsArea');
+  if (ta) ta.innerHTML = '<div style="font-size:12px;color:var(--text3)">Calculate a transit route to see nearby stops.</div>';
+  const td = document.getElementById('transitDeparturesArea');
+  if (td) td.innerHTML = '<div style="font-size:12px;color:var(--text3)">Add a Transitland API key to see live schedules.</div>';
+  stopLiveTracker();
+}
+
+// ——— OSRM ROUTING ———
+function formatDuration(s) {
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}min` : `${m} min`;
+}
+function formatDistance(m) {
+  return m >= 1000 ? (m/1000).toFixed(1) + ' km' : Math.round(m) + ' m';
+}
+
+async function optimizeRoute() {
+  try {
+  if (!leafletMap) initMap();
+  if (routeStops.length < 2) { showToast('Add at least 2 stops first.'); return; }
+
+  clearMapMarkers();
+  routeStops.forEach((s, i) => addMapMarker(s.lat, s.lng, `${i+1}. ${s.name}`));
+
+  const profile = OSRM_PROFILE[routeTransportMode] || 'foot';
+  const coordStr = routeStops.map(s => `${s.lng},${s.lat}`).join(';');
+  // Use annotations for walking to get node-level detail; exclude=motorway for extra safety
+  const extras = routeTransportMode === 'walking' ? '&exclude=motorway' :
+                 routeTransportMode === 'cycling' ? '&exclude=motorway' : '';
+  const url = `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extras}`;
+
+  showToast('⏳ Calculating route via real roads...');
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('OSRM returned ' + resp.status);
+    const data = await resp.json();
+
+    if (data.code !== 'Ok' || !data.routes?.length) {
+      showToast('Routing failed — try different stops or switch mode.');
+      return;
+    }
+
+    const route = data.routes[0];
+    const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
+    mapRouteLayer = L.polyline(latlngs, {
+      color: MODE_COLOR[routeTransportMode] || '#4f8ef7',
+      weight: 4, opacity: 0.88,
+    }).addTo(leafletMap);
+    leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
+
+    const distEl = document.getElementById('routeDistance');
+    const durEl  = document.getElementById('routeDuration');
+    if (distEl) distEl.textContent = formatDistance(route.distance);
+    if (durEl)  durEl.textContent  = formatDuration(route.duration);
+
+    const legsEl = document.getElementById('routeLegs');
+    if (legsEl && route.legs) {
+      legsEl.innerHTML = route.legs.map((leg, i) => `
+        <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:11px">
+          <div style="font-weight:600;margin-bottom:3px;color:var(--text)">${routeStops[i].name} → ${routeStops[i+1].name}</div>
+          <div style="color:var(--text3)">${formatDistance(leg.distance)} · ${formatDuration(leg.duration)}</div>
+        </div>`).join('');
+    }
+
+    showToast(`✓ ${MODE_LABEL[routeTransportMode]}: ${formatDistance(route.distance)}, ${formatDuration(route.duration)}`);
+
+    // For transit mode: fetch stops and schedules
+    if (routeTransportMode === 'transit') {
+      await loadTransitData(route.geometry);
+    }
+
+  } catch(err) {
+    showToast('Routing error — check your connection.');
+    console.error(err);
+  }
+}
+
+// ——— TRANSIT DATA (Overpass with route relations + Transitland) ———
+async function loadTransitData(geometry) {
+  const tp = document.getElementById('transitPanel');
+  if (tp) tp.style.display = 'block';
+
+  const stopsArea = document.getElementById('transitStopsArea');
+  if (stopsArea) stopsArea.innerHTML = '<div style="color:var(--text3)">⏳ Finding nearby transit stops and lines...</div>';
+
+  // Sample multiple points along route for better coverage
+  const coords = geometry.coordinates;
+  const samplePoints = [
+    coords[0],
+    coords[Math.floor(coords.length * 0.25)],
+    coords[Math.floor(coords.length * 0.5)],
+    coords[Math.floor(coords.length * 0.75)],
+    coords[coords.length - 1],
+  ];
+  const lat = samplePoints[2][1], lng = samplePoints[2][0]; // midpoint for primary query
+
+  // Enhanced Overpass query: get stops AND their serving route relations
+  const overpassQuery = `
+[out:json][timeout:25];
+(
+  node["public_transport"="stop_position"](around:500,${lat},${lng});
+  node["highway"="bus_stop"](around:500,${lat},${lng});
+  node["railway"="tram_stop"](around:500,${lat},${lng});
+  node["railway"="station"](around:500,${lat},${lng});
+  node["railway"="subway_entrance"](around:500,${lat},${lng});
+  node["metro"="station"](around:500,${lat},${lng});
+)->.stops;
+.stops out body 20;
+rel(bn:.stops)["type"="route"];
+out tags 40;`;
+
+  try {
+    const r = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      body: 'data=' + encodeURIComponent(overpassQuery),
+    });
+    const data = await r.json();
+    const elements = data.elements || [];
+
+    // Split nodes (stops) vs relations (routes)
+    const stops     = elements.filter(e => e.type === 'node');
+    const relations = elements.filter(e => e.type === 'relation');
+
+    if (stops.length === 0) {
+      if (stopsArea) stopsArea.innerHTML = '<div style="color:var(--text3);font-size:12px">No transit stops found near this route. Try a more central location.</div>';
+      return;
+    }
+
+    // Build a map of stop IDs → which route relations serve them
+    // (Overpass returns relation tags but not full member lists in this query,
+    //  so we use the route name/ref from relations and group by proximity)
+    const routeLines = relations.map(rel => ({
+      ref:     rel.tags?.ref     || rel.tags?.name?.match(/\b\d+\b/)?.[0] || '',
+      name:    rel.tags?.name    || '',
+      type:    rel.tags?.route   || 'bus',
+      colour:  rel.tags?.colour  || rel.tags?.color || null,
+      network: rel.tags?.network || '',
+    })).filter(r => r.ref || r.name);
+
+    // Deduplicate route lines
+    const seenRefs = new Set();
+    const uniqueRoutes = routeLines.filter(r => {
+      const key = r.type + ':' + r.ref;
+      if (seenRefs.has(key)) return false;
+      seenRefs.add(key);
+      return true;
+    });
+
+    // Draw stop markers on map
+    clearTransitStopMarkers();
+    stops.slice(0, 15).forEach(stop => {
+      if (!stop.lat || !stop.lon) return;
+      const stopName = stop.tags?.name || stop.tags?.uic_name || 'Stop';
+      const stopIcon = getTransitIcon(stop.tags);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:#7c5cbf;color:#fff;padding:3px 7px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${stopIcon} ${stopName}</div>`,
+        iconAnchor: [0, 0],
+      });
+      const m = L.marker([stop.lat, stop.lon], { icon }).addTo(leafletMap);
+      transitStopMarkers.push(m);
+    });
+
+    // Build the stop list with line chips
+    if (stopsArea) {
+      const lineChipsHtml = uniqueRoutes.length > 0
+        ? `<div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Lines serving this area:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              ${uniqueRoutes.slice(0, 20).map(r => {
+                const typeLabel = getRouteTypeLabel(r.type);
+                const bg = r.colour ? r.colour : getRouteTypeColor(r.type);
+                const shortRef = r.ref || r.name.split(' ')[0];
+                return `<div title="${r.name}" style="padding:3px 9px;background:${bg};color:#fff;border-radius:12px;font-size:11px;font-weight:700;cursor:default;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${typeLabel} ${shortRef}</div>`;
+              }).join('')}
+            </div>
+          </div>`
+        : '';
+
+      stopsArea.innerHTML = lineChipsHtml +
+        `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">${stops.length} stops found near route</div>` +
+        stops.slice(0, 8).map(stop => {
+          const name   = stop.tags?.name || 'Unnamed Stop';
+          const icon   = getTransitIcon(stop.tags);
+          const ref    = stop.tags?.route_ref || stop.tags?.ref || '';
+          const opRef  = stop.tags?.operator  || '';
+          const refBadges = ref ? ref.split(';').filter(Boolean).map(r => r.trim()).slice(0, 6).map(r =>
+            `<span style="padding:1px 6px;background:var(--surface3);border-radius:8px;font-size:10px;font-weight:700;color:var(--text2)">${r}</span>`
+          ).join(' ') : '';
+
+          return `<div style="padding:8px 10px;background:var(--surface2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px">
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:${refBadges ? '5px' : '0'}">${icon} ${name}${opRef ? ` <span style="font-weight:400;color:var(--text3);font-size:10px">(${opRef})</span>` : ''}</div>
+            ${refBadges ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:3px">${refBadges}</div>` : ''}
+            ${transitlandKey
+              ? `<div style="font-size:11px;color:var(--accent);cursor:pointer;margin-top:4px" onclick="fetchStopDepartures('${encodeURIComponent(name)}','${stop.lat}','${stop.lon}')">📅 Live departures →</div>`
+              : `<div style="font-size:10px;color:var(--text3);margin-top:3px">Add Transitland key for live schedules</div>`}
+          </div>`;
+        }).join('');
+    }
+
+    // Auto-fetch departures if Transitland key set
+    if (transitlandKey && stops.length > 0) {
+      const first = stops.find(s => s.lat && s.lon);
+      if (first) await fetchNearbyDepartures(first.lat, first.lon);
+    } else {
+      const td = document.getElementById('transitDeparturesArea');
+      if (td) td.innerHTML = `<div style="font-size:12px;color:var(--text3)">Add your free Transitland API key (🔑) to see live departure boards and real-time vehicle tracking.</div>`;
+    }
+
+  } catch(err) {
+    if (stopsArea) stopsArea.innerHTML = `<div style="color:var(--coral);font-size:12px">Could not load transit stops: ${err.message}</div>`;
+  }
+}
+
+function getTransitIcon(tags) {
+  if (!tags) return '🚏';
+  if (tags.railway === 'station')         return '🚉';
+  if (tags.railway === 'subway_entrance') return '🚇';
+  if (tags.railway === 'tram_stop')       return '🚃';
+  if (tags.metro === 'station')           return '🚇';
+  if (tags.network?.toLowerCase().includes('metro')) return '🚇';
+  return '🚏';
+}
+
+function getRouteTypeLabel(type) {
+  const map = { subway:'🚇', metro:'🚇', tram:'🚃', rail:'🚆', train:'🚆', bus:'🚌', ferry:'⛴️', monorail:'🚝', light_rail:'🚈' };
+  return map[type?.toLowerCase()] || '🚌';
+}
+
+function getRouteTypeColor(type) {
+  const map = { subway:'#e63946', metro:'#e63946', tram:'#2a9d8f', rail:'#264653', train:'#264653', bus:'#4f8ef7', ferry:'#2dd4b5' };
+  return map[type?.toLowerCase()] || '#7c5cbf';
+}
+
+// ——— TRANSITLAND LIVE DATA ———
+function saveTransitKey() {
+  const key = document.getElementById('transitlandKeyInput').value.trim();
+  if (!key) { showToast('Please enter your Transitland API key.'); return; }
+  transitlandKey = key;
+  localStorage.setItem('voy_transitkey', key);
+  closeModal('transitKeyModal');
+  showToast('✓ Transitland key saved! Fetching live data...');
+  if (routeTransportMode === 'transit' && routeStops.length >= 2) {
+    optimizeRoute();
+  }
+}
+
+async function fetchNearbyDepartures(lat, lng) {
+  const tdArea = document.getElementById('transitDeparturesArea');
+  if (!tdArea) return;
+  tdArea.innerHTML = '<div style="color:var(--text3);font-size:12px">⏳ Fetching live departures...</div>';
+
+  try {
+    // Transitland v2: find stops near a point
+    const stopResp = await fetch(
+      `https://transit.land/api/v2/rest/stops?lon=${lng}&lat=${lat}&radius=400&limit=5`,
+      { headers: { 'apikey': transitlandKey } }
+    );
+    if (!stopResp.ok) throw new Error('Transitland API error: ' + stopResp.status + '. Check your API key.');
+    const stopData = await stopResp.json();
+    const stops = stopData.stops || [];
+
+    if (!stops.length) {
+      tdArea.innerHTML = '<div style="font-size:12px;color:var(--text3)">No Transitland stops found near this point.</div>';
+      return;
+    }
+
+    // Get departures for the first stop
+    const stop = stops[0];
+    const now  = new Date();
+    const depResp = await fetch(
+      `https://transit.land/api/v2/rest/stops/${stop.onestop_id}/departures?next=5400&limit=12`,
+      { headers: { 'apikey': transitlandKey } }
+    );
+    if (!depResp.ok) throw new Error('Could not load departures.');
+    const depData = await depResp.json();
+    const deps = depData.stops?.[0]?.departures || [];
+
+    renderDepartures(stop, deps, now);
+    startLiveTracker(stop.onestop_id, lat, lng);
+
+  } catch(err) {
+    tdArea.innerHTML = `<div style="color:var(--coral);font-size:12px">⚠ ${err.message}</div>`;
+  }
+}
+
+function renderDepartures(stop, deps, now) {
+  const tdArea = document.getElementById('transitDeparturesArea');
+  if (!tdArea) return;
+
+  if (!deps.length) {
+    tdArea.innerHTML = `<div style="font-size:12px;color:var(--text3)">No upcoming departures found for <strong>${stop.stop_name || 'this stop'}</strong>.</div>`;
+    return;
+  }
+
+  const header = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">📍 <strong style="color:var(--text)">${stop.stop_name}</strong></div>`;
+  const rows = deps.slice(0, 10).map(dep => {
+    const depTime = new Date(dep.departure?.scheduled_local || dep.departure_time || '');
+    const rtTime  = dep.departure?.estimated_utc ? new Date(dep.departure.estimated_utc) : null;
+    const diffMin = depTime ? Math.round((depTime - now) / 60000) : null;
+    const isLive  = !!rtTime;
+    const timeStr = depTime ? depTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—';
+    const rtStr   = rtTime  ? rtTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : null;
+    const route   = dep.trip?.route_short_name || dep.route?.route_short_name || '—';
+    const dest    = dep.trip?.trip_headsign || dep.headsign || '—';
+    const delay   = rtTime && depTime ? Math.round((rtTime - depTime) / 60000) : 0;
+
+    return `<div style="padding:7px 10px;background:var(--surface2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px;font-size:11px;display:flex;align-items:center;gap:10px">
+      <div style="background:${delay > 2 ? 'var(--coral)' : 'var(--accent)'};color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${route}</div>
+      <div style="flex:1;overflow:hidden">
+        <div style="font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${dest}</div>
+        <div style="color:var(--text3);margin-top:1px">
+          ${timeStr}${rtStr && rtStr !== timeStr ? ` <span style="color:${delay > 2 ? 'var(--coral)' : 'var(--green)'}">→ ${rtStr} (${delay > 0 ? '+' : ''}${delay}min)</span>` : ''}
+          ${isLive ? ' 🔴 live' : ''}
+        </div>
+      </div>
+      <div style="font-size:12px;color:${diffMin !== null && diffMin <= 2 ? 'var(--coral)' : 'var(--gold)'};font-weight:600;white-space:nowrap">
+        ${diffMin !== null ? (diffMin <= 0 ? 'Now' : diffMin + 'min') : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  tdArea.innerHTML = header + rows;
+  const note = document.getElementById('liveTrackerNote');
+  if (note) note.style.display = 'block';
+}
+
+async function fetchStopDepartures(nameEnc, lat, lng) {
+  if (!transitlandKey) { openModal('transitKeyModal'); return; }
+  showToast('⏳ Loading departures for ' + decodeURIComponent(nameEnc) + '...');
+  await fetchNearbyDepartures(parseFloat(lat), parseFloat(lng));
+}
+
+function startLiveTracker(stopId, lat, lng) {
+  stopLiveTracker();
+  // Refresh departures every 60 seconds for live data
+  liveTrackerInterval = setInterval(async () => {
+    if (routeTransportMode !== 'transit' || !transitlandKey) return;
+    await fetchNearbyDepartures(lat, lng);
+  }, 60000);
+}
+
+function stopLiveTracker() {
+  if (liveTrackerInterval) {
+    clearInterval(liveTrackerInterval);
+    liveTrackerInterval = null;
+  }
+}
+
+async function refreshTransitData() {
+  try {
+  if (routeStops.length >= 2 && routeTransportMode === 'transit') {
+    await optimizeRoute();
+  } else {
+    showToast('Add stops and calculate a transit route first.');
+  }
+}
+
+async function showOnMap(name) {
+  showPanel('map', document.querySelectorAll('.nav-item')[2]);
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[2].classList.add('active');
+  if (!leafletMap) initMap();
+  setTimeout(async () => {
+    const near = trips[currentTripId]?.destination || '';
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name + (near ? ', ' + near : ''))}&format=json&limit=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await r.json();
+      if (data.length > 0) {
+        const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+        leafletMap.setView([lat, lng], 16);
+        addMapMarker(lat, lng, name);
+        showToast('📍 ' + name + ' shown on map');
+      }
+    } catch(e) { showToast('Could not locate on map.'); }
+  }, 150);
+}
+
+// ——— API KEY ———
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key.startsWith('sk-')) { showToast('Invalid key. Should start with sk-'); return; }
+  voyagerApiKey = key;
+  localStorage.setItem('voy_apikey', key);
+  closeModal('apiKeyModal');
+  showToast('✓ API key saved — Voyager AI is ready!');
+}
+
+// ——— AI ASSISTANT — unified into research bar ———
+async function askAI() {
+  // Redirect to the unified Voyager AI bar
+  const q = document.getElementById('researchQuery')?.value.trim()
+         || document.getElementById('aiInput')?.value?.trim();
+  if (!q) return;
+  const inp = document.getElementById('researchQuery');
+  if (inp && !inp.value.trim()) inp.value = q;
+  runResearchAgent();
+}
+
+function askAIAbout(name) {
+  const inp = document.getElementById('researchQuery');
+  if (inp) { inp.value = `Tell me about ${name} — is it worth visiting, opening hours, tips, and best things to try.`; }
+  runResearchAgent();
+}
+
+// ——— VAULT DOCS ———
+function renderDocs(filter) {
+  const data = cd();
+  const grid = document.getElementById('docGrid');
+  const filtered = filter === 'all' ? data.docs : data.docs.filter(d => d.type === filter);
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);font-size:13px">No documents yet. <span style="color:var(--accent);cursor:pointer" onclick="openModal('docUploadModal')">Add one →</span></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(d => `
+    <div class="doc-card ${d.type}" onclick="showToast('Viewing: ${d.title}')">
+      <div class="doc-icon">${d.icon}</div>
+      <div class="doc-title">${d.title}</div>
+      <div class="doc-sub">${d.sub}</div>
+      <div class="doc-info">${Object.entries(d.info).map(([k,v])=>`<div class="doc-info-row"><span>${k.replace('_',' ')}</span><span>${v}</span></div>`).join('')}</div>
+      <span class="doc-status status-${d.status}">${d.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>
+    </div>`).join('');
+}
+
+function filterVault(el, type) {
+  document.querySelectorAll('.vault-cat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderDocs(type);
+}
+
+function saveDoc() {
+  const type  = document.getElementById('docType').value;
+  const title = document.getElementById('docTitle').value || 'New Document';
+  const date  = document.getElementById('docDate').value;
+  const conf  = document.getElementById('docConf').value;
+  const notes = document.getElementById('docNotes').value;
+  const icons = {flight:'✈️', hotel:'🏨', attraction:'🎫', transport:'🚌', doc:'📄'};
+  cd().docs.push({type, icon:icons[type], title, sub:notes||'No details', info:{Date:date, Confirmation:conf}, status:'confirmed'});
+  renderDocs('all');
+  save();
+  closeModal('docUploadModal');
+  showToast('✓ Document saved!');
+}
+
+// ——— PACKING LIST ———
+function renderPacking() {
+  const items = cd().packItems;
+  const list  = document.getElementById('packingList');
+  if (items.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">No items yet — <span style="color:var(--accent);cursor:pointer" onclick="openModal('packModal')">add items</span></div>`;
+    updatePackProgress();
+    return;
+  }
+  const cats = [...new Set(items.map(i => i.cat))];
+  list.innerHTML = cats.map(cat => {
+    const catItems = items.filter(i => i.cat === cat);
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">${cat}</div>
+      ${catItems.map(item => {
+        const idx = items.indexOf(item);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px;border:1px solid var(--border)">
+          <input type="checkbox" ${item.checked?'checked':''} onchange="togglePack(${idx})" style="accent-color:var(--teal);width:15px;height:15px;cursor:pointer">
+          <span style="flex:1;font-size:13px;${item.checked?'text-decoration:line-through;color:var(--text3)':''}">${item.name}</span>
+          <span onclick="removePack(${idx})" style="color:var(--text3);cursor:pointer;font-size:12px">✕</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+  updatePackProgress();
+}
+
+function togglePack(i) { cd().packItems[i].checked = !cd().packItems[i].checked; renderPacking(); save(); }
+function removePack(i)  { cd().packItems.splice(i,1); renderPacking(); save(); }
+function updatePackProgress() {
+  const items = cd().packItems;
+  const total = items.length, done = items.filter(i => i.checked).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('packingProgress').textContent = pct + '%';
+  document.getElementById('packingCount').textContent    = `${done} of ${total} items packed`;
+  document.getElementById('packProgressBar').style.width = pct + '%';
+}
+function checkAllPacked() { cd().packItems.forEach(i => i.checked=true); renderPacking(); save(); showToast('🎒 All items packed!'); }
+function addPackItem() {
+  const name = document.getElementById('packItemName').value.trim();
+  const cat  = document.getElementById('packCat').value;
+  if (!name) return;
+  cd().packItems.push({name, cat, checked:false});
+  closeModal('packModal');
+  renderPacking(); save();
+  showToast('Item added!');
+}
+
+// ——— DISCOVER PLACES ———
+const places = [
+  {emoji:'🥐', name:'Du Pain et des Idées', type:'bakery', stars:4.9, reviews:2840, tags:['Bakery','Croissants','Historic'], price:'€', desc:'Legendary Parisian boulangerie since 1889. Famous for escargot pastries.'},
+  {emoji:'🍷', name:'Le Comptoir du Relais', type:'restaurant', stars:4.7, reviews:3120, tags:['Bistro','French','Wine'], price:'€€', desc:'Saint-Germain gem. Classic French cuisine, book weeks in advance.'},
+  {emoji:'🖼️', name:"Musée d'Orsay", type:'museum', stars:4.8, reviews:12500, tags:['Museum','Impressionism','Art'], price:'€€', desc:"World's finest Impressionist collection. Monet, Renoir, Degas."},
+  {emoji:'☕', name:'Café de Flore', type:'cafe', stars:4.5, reviews:8900, tags:['Historic Café','Breakfast','Icons'], price:'€€', desc:"Literary café since 1887. Sartre's former haunt. Iconic Parisian experience."},
+  {emoji:'🍽️', name:'Septime', type:'restaurant', stars:4.9, reviews:4200, tags:['Modern French','Michelin','Seasonal'], price:'€€€€', desc:'One Michelin star. Neo-bistro with outstanding seasonal tasting menus.'},
+  {emoji:'🏛️', name:'Sainte-Chapelle', type:'attraction', stars:4.8, reviews:9300, tags:['Gothic','Stained Glass','Historic'], price:'€', desc:'Medieval Gothic chapel with breathtaking 13th-century stained glass windows.'},
+  {emoji:'🍺', name:'Experimental Cocktail Club', type:'bar', stars:4.6, reviews:1850, tags:['Cocktails','Speakeasy','Craft'], price:'€€€', desc:'Pioneer of the Parisian craft cocktail scene. Hidden gem in Montorgueil.'},
+  {emoji:'🥗', name:'Frenchie Bar à Vins', type:'restaurant', stars:4.7, reviews:2100, tags:['Wine Bar','Small Plates','Modern'], price:'€€€', desc:'Natural wines & creative small plates. No reservations — arrive early.'},
+  {emoji:'🎭', name:'Palais Royal Gardens', type:'attraction', stars:4.7, reviews:15200, tags:['Gardens','Free','Shopping'], price:'Free', desc:'Beautiful arcaded gardens near the Louvre. Striped columns installation.'},
+  {emoji:'🥐', name:'Poilâne Bakery', type:'bakery', stars:4.8, reviews:3400, tags:['Sourdough','Legendary','Pastries'], price:'€', desc:'World-famous sourdough bread baked in wood-fired ovens since 1932.'},
+  {emoji:'🍰', name:'Pierre Hermé', type:'cafe', stars:4.8, reviews:5600, tags:['Patisserie','Macarons','Luxury'], price:'€€€', desc:'The Picasso of pastry. Otherworldly macarons and pastries.'},
+  {emoji:'🏰', name:'Château de Versailles', type:'attraction', stars:4.8, reviews:89000, tags:['Palace','Gardens','History'], price:'€€', desc:"Sun King's masterpiece. Arrive at opening to beat the crowds."},
+];
+let currentFilter = 'all';
+
+// ——— EXPORT ———
+function exportTrip() {
+  const trip = trips[currentTripId];
+  const blob = new Blob([JSON.stringify({trip:trip?.name, destination:trip?.destination, data:cd()}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (trip?.name||'trip').replace(/[^a-z0-9]/gi,'_').toLowerCase() + '-voyager.json';
+  a.click();
+  showToast('✓ Trip exported!');
+}
+
+// ——— BUDGET ———
+const CAT_COLORS = {Flights:'var(--accent)', Accommodation:'var(--gold)', Food:'var(--coral)', Activities:'var(--teal)', Transport:'var(--accent2)', Shopping:'var(--green)', Other:'var(--text3)'};
+const CAT_ICONS  = {Flights:'✈️', Accommodation:'🏨', Food:'🍽️', Activities:'🎫', Transport:'🚌', Shopping:'🛍️', Other:'📋'};
+
+function renderBudget() {
+  const data = cd();
+  const trip = trips[currentTripId] || {};
+  const totalBudget = data.totalBudget || trip.totalBudget || 0;
+  const spent = data.expenses.reduce((a, e) => a + e.amount, 0);
+  const remaining = totalBudget - spent;
+  const pct = totalBudget > 0 ? Math.min(100, Math.round(spent/totalBudget*100)) : 0;
+  const barColor = pct >= 90 ? 'var(--coral)' : pct >= 70 ? 'var(--gold)' : 'var(--teal)';
+
+  // By category
+  const cats = {};
+  data.expenses.forEach(e => { cats[e.cat] = (cats[e.cat] || 0) + e.amount; });
+  const maxCat = Math.max(...Object.values(cats), 1);
+
+  const overviewEl = document.getElementById('budgetOverviewArea');
+  if (overviewEl) {
+    if (totalBudget === 0 && data.expenses.length === 0) {
+      overviewEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">
+        No budget set yet.<br><br>
+        <button class="btn-sm primary" onclick="openModal('setBudgetModal')">Set Budget</button>
+        <span style="margin:0 8px;color:var(--border2)">or</span>
+        <button class="btn-sm" onclick="openModal('expenseModal')">+ Add Expense</button>
+      </div>`;
+    } else {
+      overviewEl.innerHTML = `
+        <div class="budget-bar-wrap">
+          <div class="budget-total">
+            <span style="color:var(--text2)">Spent: <strong style="color:var(--text)">$${spent.toLocaleString()}</strong></span>
+            ${totalBudget > 0 ? `<span style="color:var(--text2)">Budget: <strong style="color:var(--gold)">$${totalBudget.toLocaleString()}</strong></span>` : '<span style="color:var(--text3);font-size:11px">No budget set</span>'}
+          </div>
+          <div class="budget-bar-track"><div class="budget-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+          ${totalBudget > 0 ? `<div style="font-size:11px;color:${remaining >= 0 ? 'var(--text3)' : 'var(--coral)'};margin-top:4px;text-align:right">
+            ${remaining >= 0 ? `$${remaining.toLocaleString()} remaining` : `$${Math.abs(remaining).toLocaleString()} over budget!`}
+          </div>` : ''}
+        </div>
+        ${Object.keys(cats).length > 0 ? `<div class="budget-cats" style="margin-top:16px">
+          ${Object.entries(cats).map(([cat, amt]) => `
+            <div class="budget-cat">
+              <div class="budget-cat-dot" style="background:${CAT_COLORS[cat]||'var(--text3)'}"></div>
+              <span class="budget-cat-name">${CAT_ICONS[cat]||'📋'} ${cat}</span>
+              <div class="budget-cat-bar-wrap"><div class="budget-cat-bar" style="width:${Math.round(amt/maxCat*100)}%;background:${CAT_COLORS[cat]||'var(--text3)'}"></div></div>
+              <span class="budget-cat-amount">$${amt.toLocaleString()}</span>
+            </div>`).join('')}
+        </div>` : ''}`;
+    }
+  }
+
+  const logEl = document.getElementById('expenseLogArea');
+  if (logEl) {
+    if (data.expenses.length === 0) {
+      logEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">No expenses yet. <span style="color:var(--accent);cursor:pointer" onclick="openModal('expenseModal')">Add one →</span></div>`;
+    } else {
+      logEl.innerHTML = data.expenses.map((e, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:16px">${CAT_ICONS[e.cat]||'📋'}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:500">${e.name}</div>
+            <div style="font-size:10px;color:var(--text3)">${e.date || ''} · ${e.cat}</div>
+          </div>
+          <span style="font-size:13px;font-weight:600;color:var(--coral)">-$${e.amount.toLocaleString()}</span>
+          <span onclick="removeExpense(${i})" style="color:var(--text3);cursor:pointer;font-size:11px" title="Remove">✕</span>
+        </div>`).join('');
+    }
+  }
+}
+
+function saveExpense() {
+  const desc   = document.getElementById('expDesc').value.trim();
+  const amount = parseFloat(document.getElementById('expAmount').value);
+  const cat    = document.getElementById('expCat').value;
+  const date   = document.getElementById('expDate').value;
+  if (!desc || isNaN(amount) || amount <= 0) { showToast('Please enter a description and valid amount.'); return; }
+  cd().expenses.push({icon: CAT_ICONS[cat]||'📋', name: desc, cat, date, amount});
+  renderBudget();
+  updateOverview();
+  save();
+  closeModal('expenseModal');
+  ['expDesc','expAmount','expDate'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  showToast('✓ Expense saved!');
+}
+
+function removeExpense(i) {
+  cd().expenses.splice(i, 1);
+  renderBudget();
+  updateOverview();
+  save();
+}
+
+function saveTripBudget() {
+  const val = parseFloat(document.getElementById('totalBudgetInput').value);
+  if (isNaN(val) || val < 0) { showToast('Enter a valid budget amount.'); return; }
+  cd().totalBudget = val;
+  if (trips[currentTripId]) trips[currentTripId].totalBudget = val;
+  save();
+  renderBudget();
+  updateOverview(); // refresh budget in hero meta
+  closeModal('setBudgetModal');
+  showToast('✓ Budget set to $' + val.toLocaleString());
+}
+
+
+
+// ——— AI DEEP DIVE (ask Voyager AI about a specific result) ———
+function aiDeepDive(name) {
+  const input = document.getElementById('researchQuery');
+  if (input) {
+    input.value = `Tell me more about "${name}" — opening hours, tips, how to book, what to order or see, and any insider advice.`;
+    runResearchAgent();
+  }
+}
+
+// ——— RE-SCORE RESULTS ———
+function reScoreResults() {
+  if (!documentStore.count()) { showToast('Run a search first.'); return; }
+  const ranked = rankNodes(documentStore.retrieve('', 20));
+  renderResearchResults(ranked, '', '');
+  showToast('✓ Re-scored with new weights');
+}
+
+// ——— CLEAR RESEARCH ———
+function clearResearch() {
+  documentStore.clear();
+  const qEl = document.getElementById('researchQuery');
+  if (qEl) qEl.value = '';
+  const rEl = document.getElementById('researchResults');
+  if (rEl) rEl.innerHTML = '';
+  const drawer = document.getElementById('researchResultsDrawer');
+  if (drawer) drawer.style.display = 'none';
+  const bEl = document.getElementById('researchBudget');
+  if (bEl) bEl.value = '';
+  setResearchStatus('');
+}
+
+// ——— ADD TO ITINERARY ———
+function addResearchToItinerary(dataEnc) {
+  try {
+    const d = JSON.parse(decodeURIComponent(dataEnc));
+    openModal('eventModal');
+    setTimeout(() => {
+      const nameEl = document.getElementById('eventName');
+      const typeEl = document.getElementById('eventType');
+      if (nameEl) nameEl.value = d.name || '';
+      if (typeEl) {
+        const map = {restaurant:'food', hotel:'hotel', attraction:'attraction', activity:'attraction', transport:'transport'};
+        typeEl.value = map[d.type] || 'attraction';
+      }
+      const notesEl = document.getElementById('eventNotes');
+      if (notesEl && d.address) notesEl.value = d.address;
+    }, 50);
+    showToast('Pre-filled — pick a day and time to save.');
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— DESTINATION AUTOCOMPLETE (Nominatim) ———
+// ═══════════════════════════════════════════════════════
+let destInputTimer = null;
+let destSelectedLat = null, destSelectedLng = null;
+
+function onDestInputChange() {
+  clearTimeout(destInputTimer);
+  const q = document.getElementById('newTripDest')?.value.trim();
+  if (!q || q.length < 3) { closeDestDropdown(); return; }
+  destInputTimer = setTimeout(() => fetchDestSuggestions(q), 300);
+}
+
+async function fetchDestSuggestions(q) {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&featuretype=city&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const results = await r.json();
+    // Include cities, towns, counties, countries
+    const places = results.filter(r =>
+      ['city','town','village','municipality','county','state','country','administrative'].includes(r.type) ||
+      r.class === 'place' || r.class === 'boundary'
+    ).slice(0, 6);
+    renderDestDropdown(places.length ? places : results.slice(0, 6));
+  } catch(e) { closeDestDropdown(); }
+}
+
+function renderDestDropdown(results) {
+  const box = document.getElementById('destDropdown');
+  if (!box || !results.length) { closeDestDropdown(); return; }
+  box.style.display = 'block';
+  box.innerHTML = results.map(r => {
+    const parts   = r.display_name.split(',').map(s => s.trim());
+    const main    = parts[0];
+    const sub     = parts.slice(1, 3).join(', ');
+    const typeIcon = r.type === 'country' ? '🌍' : r.type === 'city' || r.type === 'town' ? '🏙️' : '📍';
+    return `<div onclick="selectDestination('${encodeURIComponent(r.display_name.split(',').slice(0,2).join(',').trim())}','${r.lat}','${r.lon}')"
+      style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)"
+      onmouseover="this.style.background='var(--surface2)'"
+      onmouseout="this.style.background=''">
+      <span style="font-size:16px;flex-shrink:0">${typeIcon}</span>
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${main}</div>
+        <div style="font-size:11px;color:var(--text3)">${sub}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectDestination(nameEnc, lat, lng) {
+  const name = decodeURIComponent(nameEnc);
+  const inp  = document.getElementById('newTripDest');
+  if (inp) inp.value = name;
+  destSelectedLat = parseFloat(lat);
+  destSelectedLng = parseFloat(lng);
+  closeDestDropdown();
+  // Auto-fill trip name if empty
+  const nameInp = document.getElementById('newTripName');
+  if (nameInp && !nameInp.value) {
+    nameInp.value = name.split(',')[0].trim();
+  }
+}
+
+function closeDestDropdown() {
+  const box = document.getElementById('destDropdown');
+  if (box) box.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— RESEARCH AGENT ENGINE ———
+// Tools: Jina Reader · Firecrawl REST · Overpass (discover)
+// Memory: LlamaIndex-style document store
+// ═══════════════════════════════════════════════════════
+
+let firecrawlKey = '';
+function saveFirecrawlKey() {
+  const key = document.getElementById('firecrawlKeyInput')?.value.trim();
+  if (key) { firecrawlKey = key; localStorage.setItem('voy_firecrawl', key); showToast('✓ Firecrawl key saved!'); }
+  closeModal('firecrawlKeyModal');
+}
+
+// ——— TOOL: Jina Reader (free, no key, works reliably) ———
+async function toolJinaReader(url) {
+  try {
+    const resp = await fetch(`https://r.jina.ai/${encodeURIComponent(url)}`, {
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown', 'X-Timeout': '12' },
+    });
+    if (!resp.ok) return null;
+    return { url, content: (await resp.text()).slice(0, 10000) };
+  } catch(e) { return null; }
+}
+
+// ——— TOOL: Firecrawl (premium, needs key) ———
+async function toolFirecrawl(query) {
+  if (!firecrawlKey) return null;
+  try {
+    const resp = await fetch('https://api.firecrawl.dev/v1/search', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit: 6, scrapeOptions: { formats: ['markdown'] } }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return (data.data || []).map(r => ({ url: r.url, content: r.markdown || '' }));
+  } catch(e) { return null; }
+}
+
+// Convert Overpass elements → normalised candidate objects
+function overpassToCandidate(el) {
+  const t = el.tags || {};
+  const name = t.name || t['name:en'] || '';
+  if (!name || name.length < 2) return null;
+
+  // Build description from tags
+  const descParts = [];
+  if (t.cuisine)        descParts.push(t.cuisine.replace(/_/g,' '));
+  if (t.opening_hours)  descParts.push(t.opening_hours);
+  if (t.description)    descParts.push(t.description.slice(0, 80));
+
+  // Build address
+  const addrParts = [t['addr:street'], t['addr:housenumber'], t['addr:city']].filter(Boolean);
+  const address   = addrParts.join(', ');
+
+  // Price tier from OSM tags
+  const priceMap = { '$':1, '$$':2, '$$$':3, '$$$$':4 };
+  const priceRange = t.price_range || null;
+  const priceTier  = priceMap[priceRange] || 2;
+
+  // Features
+  const features = [];
+  if (t.outdoor_seating === 'yes')       features.push('🌿 Outdoor Seating');
+  if (t.takeaway === 'yes')              features.push('📦 Takeout');
+  if (t.delivery === 'yes')             features.push('🛵 Delivery');
+  if (t.internet_access === 'wlan')     features.push('📶 Free WiFi');
+  if (t.diet_vegetarian === 'yes')      features.push('🥦 Vegetarian');
+  if (t.diet_vegan === 'yes')           features.push('🌱 Vegan');
+  if (t.diet_halal === 'yes')           features.push('🌙 Halal');
+  if (t.wheelchair === 'yes')           features.push('♿ Accessible');
+  if (t.stars)                          features.push(`⭐ ${t.stars}-star`);
+
+  // Michelin (rarely in OSM but some cities tag it)
+  let michelinStars = 0;
+  if (t.michelin_stars) michelinStars = parseInt(t.michelin_stars) || 0;
+  const awards = michelinStars > 0
+    ? ['⭐'.repeat(michelinStars) + ' Michelin Star' + (michelinStars > 1 ? 's' : '')]
+    : [];
+
+  return {
+    name,
+    description: descParts.join(' · ') || `${t.amenity || t.tourism || ''} in ${t['addr:city'] || ''}`.trim(),
+    address,
+    rating:       t.stars ? Math.min(5, parseFloat(t.stars)) : null,
+    reviewCount:  null,
+    priceTier, priceRange,
+    features,
+    pros:  [],
+    cons:  [],
+    awards,
+    michelinStars,
+    lat: el.lat || el.center?.lat,
+    lng: el.lon || el.center?.lon,
+    website: t.website || t['contact:website'] || null,
+    source: 'OpenStreetMap',
+  };
+}
+
+// ——— LLAMAINDEX-STYLE DOCUMENT STORE ———
+const documentStore = {
+  nodes: [], _id: 0,
+  insert(doc) {
+    const key = (doc.metadata?.name || '').toLowerCase().replace(/\s+/g,'');
+    const dup = this.nodes.find(n => (n.metadata?.name||'').toLowerCase().replace(/\s+/g,'') === key && key.length > 2);
+    if (dup) { if ((doc.metadata?.rating||0) > (dup.metadata?.rating||0)) dup.metadata = {...dup.metadata,...doc.metadata}; return dup.id; }
+    const id = 'n' + (++this._id);
+    this.nodes.push({ id, text: doc.text||'', metadata: doc.metadata||{}, source: doc.source||'' });
+    return id;
+  },
+  retrieve(query, topK = 20) {
+    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    return this.nodes
+      .map(n => {
+        const hay = (n.text + ' ' + JSON.stringify(n.metadata)).toLowerCase();
+        const hits = terms.filter(t => hay.includes(t)).length;
+        return { ...n, relevance: terms.length ? hits / terms.length : 1 };
+      })
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, topK);
+  },
+  clear() { this.nodes = []; this._id = 0; },
+  count() { return this.nodes.length; },
+  getAll() { return [...this.nodes]; },
+};
+
+// ——— SCORING ENGINE ———
+let scoringWeights = { rating: 0.40, reviews: 0.20, value: 0.25, features: 0.15 };
+
+function updateWeights() {
+  const r=parseInt(document.getElementById('wRating')?.value||40);
+  const v=parseInt(document.getElementById('wReviews')?.value||20);
+  const p=parseInt(document.getElementById('wValue')?.value||25);
+  const f=parseInt(document.getElementById('wFeatures')?.value||15);
+  const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val+'%';};
+  set('wRatingVal',r);set('wReviewsVal',v);set('wValueVal',p);set('wFeaturesVal',f);
+  const w=document.getElementById('weightWarning');
+  if(w)w.style.display=(r+v+p+f)!==100?'block':'none';
+  scoringWeights={rating:r/100,reviews:v/100,value:p/100,features:f/100};
+}
+
+function scoreNode(meta) {
+  const r = Math.min((meta.rating||3.5)/5,1);
+  const v = Math.min(Math.log10(Math.max(meta.reviewCount||10,1))/4,1);
+  const p = 1-((meta.priceTier||2)-1)/4;
+  const f = Math.min((meta.features?.length||0)/6,1);
+  return {
+    ratingScore:r, reviewScore:v, valueScore:p, featureScore:f,
+    total: parseFloat((r*scoringWeights.rating+v*scoringWeights.reviews+p*scoringWeights.value+f*scoringWeights.features).toFixed(3)),
+  };
+}
+
+function rankNodes(nodes) {
+  return nodes.map(n=>{const s=scoreNode(n.metadata);return{...n,scores:s,totalScore:s.total};})
+              .sort((a,b)=>b.totalScore-a.totalScore);
+}
+
+// ——— TEXT EXTRACTION (for research agent bar) ———
+function extractCandidatesFromText(text, query, category) {
+  if (!text || text.length < 50) return [];
+  const candidates = [];
+
+  function isJunk(name) {
+    if (!name || name.length < 3 || name.length > 80) return true;
+    if (/https?:\/\/|www\.|\.com|\.jpg|\.png|!\[|\]\(http/i.test(name)) return true;
+    if (/^[\d\s\-_.\/\\]+$/.test(name)) return true;
+    const bad = ['image','photo','click','advertisement','sponsored','cookie','privacy',
+      'terms','copyright','share','save','facebook','twitter','instagram','youtube','undefined','null','loading'];
+    const lo = name.toLowerCase();
+    if (bad.some(w => lo.includes(w))) return true;
+    if (!/^[A-Z\u00C0-\u024F]/.test(name)) return true;
+    return false;
+  }
+
+  function getMichelin(ctx) {
+    const c = ctx.toLowerCase();
+    if (/three[\s-]star|3[\s-]star.*michelin/i.test(c)) return 3;
+    if (/two[\s-]star|2[\s-]star.*michelin/i.test(c))   return 2;
+    if (/michelin[\s-]star|one[\s-]star.*michelin/i.test(c)) return 1;
+    if (/bib\s*gourmand/i.test(c)) return 0.5;
+    return 0;
+  }
+
+  function getAwards(ctx) {
+    const a = [], m = getMichelin(ctx);
+    if (m===3)   a.push('⭐⭐⭐ Three Michelin Stars');
+    if (m===2)   a.push('⭐⭐ Two Michelin Stars');
+    if (m===1)   a.push('⭐ Michelin Star');
+    if (m===0.5) a.push('🍽 Bib Gourmand');
+    if (/world.s\s*50\s*best/i.test(ctx)) a.push("🏆 World's 50 Best");
+    if (/james\s*beard/i.test(ctx))       a.push('🏅 James Beard Award');
+    return a;
+  }
+
+  // Pattern 1: Rated places with clear star/number ratings
+  const rPat = /([A-Z][A-Za-z\s&'''\-\.]{3,50})[:\s—|]+(\d\.\d)\s*(?:★|out of 5|\/5|\s*stars?)?/g;
+  let m;
+  while ((m=rPat.exec(text))!==null && candidates.length<15) {
+    const name=m[1].replace(/[*_`#]+/g,'').trim(), rating=parseFloat(m[2]);
+    if (isJunk(name)||rating<3.5) continue;
+    if (candidates.some(c=>c.name.toLowerCase()===name.toLowerCase())) continue;
+    const ctx=text.slice(Math.max(0,m.index-30),m.index+300);
+    candidates.push({name,rating,description:ctx.replace(/\n/g,' ').replace(/\s+/g,' ').slice(0,180),
+      reviewCount:null,priceTier:2,features:[],pros:[],cons:[],awards:getAwards(ctx),michelinStars:getMichelin(ctx)});
+  }
+
+  // Pattern 2: Numbered/bulleted list items
+  const lPat = /^(?:\d+[.)]\s+|[-•*]\s+)([A-Z][A-Za-z\s&'''\-\.]{3,55})(?:\s*[-–—|]|\s*$)/gm;
+  while ((m=lPat.exec(text))!==null && candidates.length<20) {
+    const name=m[1].replace(/[*_`#]+/g,'').trim();
+    if (isJunk(name)) continue;
+    if (candidates.some(c=>c.name.toLowerCase()===name.toLowerCase())) continue;
+    const ctx=text.slice(m.index,m.index+350);
+    const rm=ctx.match(/(\d\.\d)/);
+    candidates.push({name,rating:rm?parseFloat(rm[1]):null,
+      description:ctx.replace(/\n/g,' ').replace(/\s+/g,' ').slice(0,180),
+      reviewCount:null,priceTier:2,features:[],pros:[],cons:[],awards:getAwards(ctx),michelinStars:getMichelin(ctx)});
+  }
+
+  // Enrich all candidates
+  candidates.forEach(c => {
+    const ctx = (c.description||'').toLowerCase();
+    const priceMap={'$$$$':4,'€€€€':4,'$$$':3,'€€€':3,'$$':2,'€€':2,'$':1,'€':1,luxury:4,upscale:3,'mid-range':2,budget:1,cheap:1};
+    for (const [sym,tier] of Object.entries(priceMap)) {
+      if (ctx.includes(sym.toLowerCase())) { c.priceTier=tier; c.priceRange=sym; break; }
+    }
+    const rm=ctx.match(/([\d,]+)\s*(?:reviews?|ratings?)/i);
+    if (rm) c.reviewCount=parseInt(rm[1].replace(/,/g,''));
+    const fmap={'outdoor seating':'🌿 Outdoor','rooftop':'🏙 Rooftop','wifi':'📶 WiFi',
+      'takeout':'📦 Takeout','vegan':'🌱 Vegan','vegetarian':'🥦 Vegetarian','halal':'🌙 Halal',
+      'live music':'🎵 Live Music','dog-friendly':'🐾 Dog Friendly','open late':'🌙 Late Night'};
+    c.features=Object.entries(fmap).filter(([k])=>ctx.includes(k)).map(([,v])=>v).slice(0,5);
+    c.description=(c.description||'').replace(/https?:\/\/\S+/g,'').replace(/!\[[^\]]*\]\([^)]*\)/g,'')
+      .replace(/[*_`#]+/g,'').replace(/\s+/g,' ').trim().slice(0,180);
+  });
+
+  return candidates.filter(c=>!isJunk(c.name)).slice(0,10);
+}
+
+// ——— MAIN RESEARCH AGENT (bottom bar) ———
+let researchRunning = false;
+
+async function runResearchAgent() {
+  if (researchRunning) { showToast('Agent already running...'); return; }
+
+  const query    = document.getElementById('researchQuery')?.value.trim();
+  const category = document.getElementById('researchCategory')?.value || 'general';
+  const budget   = document.getElementById('researchBudget')?.value.trim() || '';
+  const priority = document.getElementById('researchPriority')?.value || 'balanced';
+
+  if (!query) { showToast('Enter a research query first.'); return; }
+
+  researchRunning = true;
+  documentStore.clear();
+
+  const btn    = document.getElementById('researchRunBtn');
+  const drawer = document.getElementById('researchResultsDrawer');
+  if (btn)   { btn.disabled=true; btn.textContent='⏳...'; }
+  if (drawer) drawer.style.display='block';
+
+  const resEl = document.getElementById('researchResults');
+  if (resEl) resEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">⏳ Searching...</div>`;
+  setResearchStatus('Running...');
+
+  const trip = trips[currentTripId];
+  const dest  = trip?.destination || '';
+  const t0    = Date.now();
+
+  try {
+    // ——— Source 1: Jina Reader on curated travel sites ———
+    const searchQueries = [
+      `best ${category === 'general' ? '' : category} ${query} ${dest} top rated reviewed 2025`,
+      `${query} ${dest} michelin recommended yelp reviews`,
+    ];
+
+    const rawPages = [];
+
+    // Try Firecrawl first (premium, better results)
+    if (firecrawlKey) {
+      const fcResults = await toolFirecrawl(searchQueries[0]);
+      if (fcResults?.length) rawPages.push(...fcResults.slice(0,4));
+    }
+
+    // Jina fallback — read from well-known travel sites directly
+    if (rawPages.length === 0) {
+      for (const q of searchQueries) {
+        const r = await toolJinaReader(
+          `https://www.bing.com/search?q=${encodeURIComponent(q)}&format=html`
+        );
+        if (r?.content) rawPages.push(r);
+        // Also try a direct Yelp search page
+        const yelpQ = encodeURIComponent(`${query} ${dest}`);
+        const yelpR = await toolJinaReader(`https://www.yelp.com/search?find_desc=${yelpQ}&find_loc=${encodeURIComponent(dest)}`);
+        if (yelpR?.content) rawPages.push(yelpR);
+      }
+    }
+
+    // ——— Extract candidates from page content ———
+    const seen = new Set();
+    for (const page of rawPages) {
+      if (!page?.content) continue;
+      const extracted = extractCandidatesFromText(page.content, query, category);
+      for (const c of extracted) {
+        const key = c.name.toLowerCase().replace(/\s+/g,'');
+        if (key.length < 3 || seen.has(key)) continue;
+        seen.add(key);
+        documentStore.insert({ text: c.name+' '+(c.description||''), metadata:{...c,query,category}, source: page.url||'web' });
+      }
+    }
+
+    // ——— Re-search if weak ———
+    if (documentStore.count() < 3) {
+      const fallback = await toolJinaReader(
+        `https://r.jina.ai/https://www.tripadvisor.com/Search?q=${encodeURIComponent(query+' '+dest)}`
+      );
+      if (fallback?.content) {
+        extractCandidatesFromText(fallback.content, query, category).forEach(c => {
+          documentStore.insert({ text:c.name, metadata:{...c,query,category}, source:'tripadvisor' });
+        });
+      }
+    }
+
+    // ——— Score + rank ———
+    const retrieved = documentStore.retrieve(query, 20);
+    let ranked = rankNodes(retrieved.filter(n => n.metadata?.name?.length > 2));
+
+    if (priority==='quality') ranked.sort((a,b)=>b.scores.ratingScore-a.scores.ratingScore);
+    else if (priority==='value') ranked.sort((a,b)=>b.scores.valueScore-a.scores.valueScore);
+    else if (priority==='popular') ranked.sort((a,b)=>b.scores.reviewScore-a.scores.reviewScore);
+
+    const elapsed = ((Date.now()-t0)/1000).toFixed(1);
+    setResearchStatus(`✓ ${ranked.length} results · ${elapsed}s`);
+    renderResearchResults(ranked, query, budget);
+
+  } catch(err) {
+    setResearchStatus('⚠ Error');
+    const r=document.getElementById('researchResults');
+    if(r) r.innerHTML=`<div style="padding:16px;color:var(--coral);font-size:13px">⚠ ${err.message}</div>`;
+  } finally {
+    researchRunning=false;
+    if(btn){btn.disabled=false;btn.textContent='Search';}
+  }
+}
+
+// ——— RENDER RESEARCH RESULTS ———
+function renderResearchResults(ranked, query, budget) {
+  const container = document.getElementById('researchResults');
+  if (!container) return;
+  if (!ranked.length) {
+    container.innerHTML=`<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No results found. Try rephrasing or adding a Firecrawl key (🔑 Keys) for better extraction.</div>`;
+    return;
+  }
+  const pL={1:'$',2:'$$',3:'$$$',4:'$$$$'};
+  const pC={1:'var(--green)',2:'var(--teal)',3:'var(--gold)',4:'var(--coral)'};
+  const sBar=(val,col)=>`<div style="height:3px;border-radius:2px;background:var(--surface3);overflow:hidden;margin-top:2px"><div style="height:100%;width:${Math.round(val*100)}%;background:${col};border-radius:2px"></div></div>`;
+  container.innerHTML = ranked.slice(0,8).map((node,i)=>{
+    const m=node.metadata||{};
+    const isTop=i===0;
+    const stars=m.rating?'★'.repeat(Math.min(5,Math.round(m.rating)))+'☆'.repeat(Math.max(0,5-Math.round(m.rating))):'';
+    const price=m.priceTier?`<span style="color:${pC[m.priceTier]};font-weight:600">${m.priceRange||pL[m.priceTier]}</span>`:'';
+    const mich=m.michelinStars>=1?`<span style="font-size:11px" title="Michelin">${'⭐'.repeat(Math.min(m.michelinStars,3))}</span>`:'';
+    return `<div style="background:var(--surface);border:1px solid ${isTop?'rgba(232,184,75,0.4)':'var(--border)'};border-radius:12px;overflow:hidden;${isTop?'box-shadow:0 4px 20px rgba(232,184,75,0.08)':''}">
+      <div style="padding:12px 14px;background:${isTop?'linear-gradient(135deg,rgba(232,184,75,0.1),transparent)':'transparent'};display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--border)">
+        <div style="width:26px;height:26px;border-radius:50%;background:${isTop?'var(--gold)':i===1?'var(--surface3)':'rgba(124,92,191,0.25)'};color:${isTop?'#000':'var(--text2)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${isTop?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div style="font-size:14px;font-weight:700;color:${isTop?'var(--gold)':'var(--text)'}">${m.name||'Unknown'}</div>
+            ${isTop?'<span style="font-size:9px;padding:2px 7px;background:var(--gold);color:#000;border-radius:8px;font-weight:800">TOP</span>':''}
+            ${mich}${price}
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px">${(m.description||'').slice(0,110)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:19px;font-weight:800;color:${isTop?'var(--gold)':'var(--accent)'}">${Math.round(node.totalScore*100)}<span style="font-size:10px;font-weight:400;color:var(--text3)">/100</span></div>
+          ${m.rating?`<div style="font-size:10px;color:var(--gold)">${m.rating.toFixed(1)} ${stars}</div>`:''}
+          ${m.reviewCount?`<div style="font-size:10px;color:var(--text3)">${m.reviewCount.toLocaleString()} reviews</div>`:''}
+        </div>
+      </div>
+      <div style="padding:10px 14px;display:flex;gap:14px">
+        <div style="width:130px;flex-shrink:0">
+          ${[['⭐ Rating',node.scores.ratingScore,'var(--gold)'],['👥 Reviews',node.scores.reviewScore,'var(--accent)'],['💰 Value',node.scores.valueScore,'var(--teal)'],['✨ Features',node.scores.featureScore,'var(--coral)']].map(([l,v,c])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)"><span>${l}</span><span>${Math.round(v*100)}%</span></div>${sBar(v,c)}</div>`).join('')}
+        </div>
+        <div style="flex:1">
+          ${m.awards?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${m.awards.map(a=>`<span style="padding:2px 8px;background:rgba(232,184,75,0.12);border:1px solid rgba(232,184,75,0.3);border-radius:8px;font-size:10px;color:var(--gold);font-weight:700">${a}</span>`).join('')}</div>`:''}
+          ${m.features?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${m.features.slice(0,5).map(f=>`<span style="padding:2px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:10px;color:var(--text2)">${f}</span>`).join('')}</div>`:''}
+          ${m.address?`<div style="font-size:10px;color:var(--text3);margin-top:3px">📍 ${m.address}</div>`:''}
+        </div>
+      </div>
+      <div style="padding:7px 14px;border-top:1px solid var(--border);display:flex;gap:6px">
+        <button class="btn-sm" style="font-size:11px" onclick="addResearchToItinerary('${encodeURIComponent(JSON.stringify({name:m.name,address:m.address||'',type:m.category||'attraction'}))}')">+ Itinerary</button>
+        <button class="btn-sm" style="font-size:11px" onclick="showOnMap('${(m.name||'').replace(/'/g,"\\'")}')">📍 Map</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ——— INIT RESEARCH PANEL (load saved keys) ———
+function initResearchPanel() {} // No separate panel needed anymore
+
+// ——— TEMP UNIT TOGGLE ———
+let tempUnit = localStorage.getItem('voy_tempUnit') || 'C';
+let lastTempC = null;
+
+function toggleTempUnit() {
+  tempUnit = tempUnit === 'C' ? 'F' : 'C';
+  localStorage.setItem('voy_tempUnit', tempUnit);
+  if (lastTempC !== null) renderTempDisplay(lastTempC);
+}
+function cToF(c) { return Math.round(c * 9/5 + 32); }
+function renderTempDisplay(tempC) {
+  lastTempC = tempC;
+  const el  = document.getElementById('heroTemp');
+  const btn = document.getElementById('heroTempUnitBtn');
+  if (el)  el.textContent  = tempUnit === 'F' ? cToF(tempC) : Math.round(tempC);
+  if (btn) btn.textContent = '°' + tempUnit;
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— LIVE HERO DATA: Weather · AQI · Background Image ———
+// ═══════════════════════════════════════════════════════
+
+const WMO_CODES = {
+  0:'Clear Sky',1:'Mainly Clear',2:'Partly Cloudy',3:'Overcast',
+  45:'Fog',48:'Icy Fog',51:'Light Drizzle',53:'Drizzle',55:'Heavy Drizzle',
+  61:'Light Rain',63:'Rain',65:'Heavy Rain',71:'Light Snow',73:'Snow',
+  75:'Heavy Snow',77:'Snow Grains',80:'Light Showers',81:'Showers',
+  82:'Heavy Showers',85:'Snow Showers',86:'Heavy Snow Showers',
+  95:'Thunderstorm',96:'Hail Storm',99:'Heavy Hail Storm',
+};
+function aqiStyle(aqi) {
+  if (aqi==null) return {color:'#888',bg:'rgba(136,136,136,0.2)',label:'N/A'};
+  if (aqi<=50)   return {color:'#3dca72',bg:'rgba(61,202,114,0.25)',label:'Good'};
+  if (aqi<=100)  return {color:'#e8b84b',bg:'rgba(232,184,75,0.25)',label:'Moderate'};
+  if (aqi<=150)  return {color:'#f07060',bg:'rgba(240,112,96,0.25)',label:'Sensitive Groups'};
+  if (aqi<=200)  return {color:'#f07060',bg:'rgba(240,112,96,0.35)',label:'Unhealthy'};
+  if (aqi<=300)  return {color:'#b07ccf',bg:'rgba(124,92,191,0.35)',label:'Very Unhealthy'};
+  return              {color:'#cc3333',bg:'rgba(139,0,0,0.4)',label:'Hazardous'};
+}
+
+async function fetchHeroLiveData(lat, lng, locationName) {
+  const widget   = document.getElementById('heroWeatherWidget');
+  const descEl   = document.getElementById('heroWeatherDesc');
+  const aqiBadge = document.getElementById('heroAqiBadge');
+  const aqiLabel = document.getElementById('heroAqiLabel');
+  const locLabel = document.getElementById('heroWeatherLocation');
+  if (!widget) return;
+  try {
+    const [wResp, aResp] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,apparent_temperature&temperature_unit=celsius&timezone=auto`),
+      fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,european_aqi&timezone=auto`),
+    ]);
+    const wData = await wResp.json();
+    const aData = await aResp.json();
+    const tempC   = wData.current?.temperature_2m;
+    const appTempC = wData.current?.apparent_temperature;
+    const code    = wData.current?.weather_code;
+    const aqi     = aData.current?.us_aqi ?? aData.current?.european_aqi ?? null;
+    if (tempC !== undefined && tempC !== null) {
+      renderTempDisplay(tempC);
+      const appDisp = appTempC != null
+        ? ` · Feels ${tempUnit==='F'?cToF(appTempC):Math.round(appTempC)}°${tempUnit}` : '';
+      if (descEl) descEl.textContent = (WMO_CODES[code]||'Current conditions') + appDisp;
+      const st = aqiStyle(aqi);
+      if (aqiBadge) { aqiBadge.textContent=aqi??'—'; aqiBadge.style.background=st.bg; aqiBadge.style.color=st.color; }
+      if (aqiLabel) { aqiLabel.textContent=st.label; aqiLabel.style.color=st.color; }
+      if (locLabel && locationName) locLabel.textContent = locationName.split(',')[0];
+      widget.style.display='flex'; widget.style.flexDirection='column';
+    }
+  } catch(e) {}
+}
+
+// ——— BACKDROP: Wikipedia REST API → Wikimedia Commons → Picsum fallback ———
+async function setHeroBackground(destination) {
+  const bg      = document.getElementById('heroImageBg');
+  const shimmer = document.getElementById('heroImageShimmer');
+  if (!bg) return;
+  bg.style.opacity = '0';
+  if (shimmer) shimmer.style.display = 'block';
+
+  const city = (destination||'travel').split(',')[0].trim().replace(/\p{Emoji}/gu,'').trim();
+  let imageUrl = null;
+
+  // Source 1: Wikipedia page summary image (most reliable for city photos)
+  try {
+    const r = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(city)}`,
+      {headers:{Accept:'application/json'}}
+    );
+    if (r.ok) {
+      const d = await r.json();
+      const url = d.originalimage?.source || d.thumbnail?.source;
+      if (url) imageUrl = url;
+    }
+  } catch(e) {}
+
+  // Source 2: Wikimedia Commons search for city skyline
+  if (!imageUrl) {
+    try {
+      const r = await fetch(
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6` +
+        `&gsrsearch=${encodeURIComponent(city+' skyline OR city landmark')}&gsrlimit=4` +
+        `&prop=imageinfo&iiprop=url&format=json&origin=*`
+      );
+      const d = await r.json();
+      const pages = Object.values(d.query?.pages || {});
+      const found = pages.find(p => /\.(jpg|jpeg|png)$/i.test(p.imageinfo?.[0]?.url||''));
+      if (found) imageUrl = found.imageinfo[0].url;
+    } catch(e) {}
+  }
+
+  // Source 3: Picsum (always works, deterministic seed from city name)
+  if (!imageUrl) {
+    const seed = city.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,15)||'travel';
+    imageUrl = `https://picsum.photos/seed/${seed}/1600/500`;
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    bg.style.backgroundImage = `url('${img.src}')`;
+    bg.style.opacity = '1';
+    if (shimmer) shimmer.style.display = 'none';
+  };
+  img.onerror = () => {
+    // CSS gradient ultimate fallback
+    bg.style.background = 'linear-gradient(135deg,#1a3050 0%,#2a1e50 50%,#0a1a30 100%)';
+    bg.style.opacity = '1';
+    if (shimmer) shimmer.style.display = 'none';
+  };
+  img.src = imageUrl;
+}
+
+async function refreshHeroLiveData() {
+  const trip = trips[currentTripId];
+  if (!trip) return;
+  setHeroBackground(trip.destination || trip.name);
+  let lat = trip.lat, lng = trip.lng;
+  const dest = trip.destination || '';
+  if (dest && (!lat || !lng)) {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dest)}&format=json&limit=1`,
+        {headers:{'Accept-Language':'en'}}
+      );
+      const data = await r.json();
+      if (data.length > 0) {
+        lat = parseFloat(data[0].lat); lng = parseFloat(data[0].lon);
+        trips[currentTripId].lat = lat; trips[currentTripId].lng = lng;
+        save();
+      }
+    } catch(e) {}
+  }
+  if (lat && lng) await fetchHeroLiveData(lat, lng, dest || trip.name);
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— DISCOVER PANEL — Agent-powered auto-suggestions ———
+// ═══════════════════════════════════════════════════════
+
+let discoverCurrentCategory = 'all';
+let discoverLastLocation = '';
+let discoverAgentRunning = false;
+
+function syncDiscoverLocation() {
+  const trip = trips[currentTripId];
+  const dest = trip?.destination || 'Paris, France';
+  const el   = document.getElementById('discoverLocation');
+  if (el) el.value = dest;
+}
+
+function openDiscoverPanel() {
+  syncDiscoverLocation();
+  const loc = document.getElementById('discoverLocation')?.value.trim() || '';
+  const grid = document.getElementById('placeGrid');
+  const isEmpty = !grid || !grid.children.length || grid.innerHTML.trim() === '';
+  // Always refresh if location changed or grid is empty
+  if (loc !== discoverLastLocation || isEmpty) {
+    discoverAgentRunning = false; // ensure no stuck flag blocks this
+    runDiscoverAgent(loc, discoverCurrentCategory);
+  }
+}
+
+function filterDiscoverCategory(el, cat) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  discoverCurrentCategory = cat;
+  const loc = document.getElementById('discoverLocation')?.value.trim() || '';
+  runDiscoverAgent(loc, cat);
+}
+
+function filterPlaces(el, type) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  discoverCurrentCategory = type;
+  const loc = document.getElementById('discoverLocation')?.value.trim() || '';
+  runDiscoverAgent(loc, type);
+}
+
+function discoverSearchCity() {
+  const loc = document.getElementById('discoverLocation')?.value.trim();
+  if (!loc) return;
+  runDiscoverAgent(loc, discoverCurrentCategory);
+}
+function resetToTripLocation() { syncDiscoverLocation(); discoverSearchCity(); }
+function searchPlaces()    { discoverSearchCity(); }
+function searchByLocation() { discoverSearchCity(); }
+
+async function runDiscoverAgent(location, category) {
+  if (discoverAgentRunning) return;
+  if (!location) return;
+
+  discoverAgentRunning  = true;
+  discoverLastLocation  = location;
+
+  const grid      = document.getElementById('placeGrid');
+  const statusBar = document.getElementById('discoverAgentStatus');
+  const statusTxt = document.getElementById('discoverAgentStatusText');
+
+  if (statusBar) statusBar.style.display = 'flex';
+  if (statusTxt) statusTxt.textContent   = `Finding places in ${location.split(',')[0]}...`;
+  if (grid)      grid.innerHTML          = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3)">
+    <div style="font-size:30px;margin-bottom:8px">🌐</div>
+    <div style="font-size:13px">Loading places in ${location.split(',')[0]}...</div>
+  </div>`;
+
+  try {
+    // ——— Step 1: Geocode ———
+    let lat = null, lng = null;
+    const trip = trips[currentTripId];
+
+    // Use stored coords if destination matches
+    const locLower  = location.toLowerCase().trim();
+    const destLower = (trip?.destination || '').toLowerCase().trim();
+    if ((locLower === destLower || destLower.startsWith(locLower) || locLower.startsWith(destLower.split(',')[0]))
+        && trip?.lat && trip?.lng) {
+      lat = trip.lat;
+      lng = trip.lng;
+    }
+
+    // Geocode if we don't have coords yet
+    if (!lat || !lng) {
+      if (statusTxt) statusTxt.textContent = `Locating ${location.split(',')[0]}...`;
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&featuretype=city`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        const d = await r.json();
+        if (d.length > 0) {
+          lat = parseFloat(d[0].lat);
+          lng = parseFloat(d[0].lon);
+          // Cache coords on the trip if it matches
+          if (locLower === destLower && trip) {
+            trips[currentTripId].lat = lat;
+            trips[currentTripId].lng = lng;
+            save();
+          }
+        }
+      } catch(e) {}
+    }
+
+    if (!lat || !lng) {
+      if (statusTxt) statusTxt.textContent = 'Could not locate city';
+      renderStaticPlaces(category);
+      return;
+    }
+
+    // ——— Step 2: Overpass — single comprehensive query ———
+    if (statusTxt) statusTxt.textContent = `Searching ${location.split(',')[0]}...`;
+
+    // Build the union filter based on category
+    // Use a large radius (5km) so we always get results even in less-mapped cities
+    const radius = 5000;
+    let filters;
+    if (category === 'restaurant') {
+      filters = `node["amenity"="restaurant"][name](around:${radius},${lat},${lng});\n  way["amenity"="restaurant"][name](around:${radius},${lat},${lng});`;
+    } else if (category === 'cafe') {
+      filters = `node["amenity"="cafe"][name](around:${radius},${lat},${lng});\n  way["amenity"="cafe"][name](around:${radius},${lat},${lng});`;
+    } else if (category === 'bar') {
+      filters = `node["amenity"~"bar|pub|nightclub"][name](around:${radius},${lat},${lng});\n  way["amenity"~"bar|pub|nightclub"][name](around:${radius},${lat},${lng});`;
+    } else if (category === 'bakery') {
+      filters = `node["shop"="bakery"][name](around:${radius},${lat},${lng});\n  node["amenity"="fast_food"]["cuisine"~"bakery"][name](around:${radius},${lat},${lng});`;
+    } else if (category === 'museum') {
+      filters = `node["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  way["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});`;
+    } else if (category === 'attraction') {
+      filters = `node["tourism"~"attraction|viewpoint|artwork|theme_park"][name](around:${radius},${lat},${lng});\n  way["tourism"~"attraction|viewpoint"][name](around:${radius},${lat},${lng});\n  node["historic"~"monument|castle|ruins|memorial"][name](around:${radius},${lat},${lng});`;
+    } else {
+      // 'all' — query everything in one shot, higher limit
+      filters = `node["amenity"~"restaurant|cafe|bar|pub|fast_food"][name](around:${radius},${lat},${lng});
+  node["tourism"~"attraction|museum|gallery|viewpoint"][name](around:${radius},${lat},${lng});
+  node["shop"="bakery"][name](around:${radius},${lat},${lng});
+  way["amenity"~"restaurant|cafe|bar"][name](around:${radius},${lat},${lng});
+  way["tourism"~"attraction|museum"][name](around:${radius},${lat},${lng});`;
+    }
+
+    const overpassQuery = `[out:json][timeout:25];
+(
+  ${filters}
+);
+out body center 40;`;
+
+    let elements = [];
+    try {
+      const oResp = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: 'data=' + encodeURIComponent(overpassQuery),
+      });
+      if (oResp.ok) {
+        const oData = await oResp.json();
+        elements = oData.elements || [];
+      } else {
+        // Fallback to mirror instance
+        const oResp2 = await fetch('https://maps.mail.ru/osm/tools/overpass/api/interpreter', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: 'data=' + encodeURIComponent(overpassQuery),
+        });
+        if (oResp2.ok) {
+          const oData2 = await oResp2.json();
+          elements = oData2.elements || [];
+        }
+      }
+    } catch(fetchErr) {
+      // Network error — fall through to static fallback
+    }
+
+    // ——— Step 3: Convert, deduplicate, rank ———
+    const seen       = new Set();
+    const candidates = [];
+
+    for (const el of elements) {
+      const c = overpassToCandidate(el);
+      if (!c) continue;
+      const key = c.name.toLowerCase().replace(/\s+/g, '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push(c);
+    }
+
+    // Score: weight completeness of data (address, cuisine, features) + Michelin bonus
+    const ranked = candidates
+      .map(c => ({
+        ...c,
+        _score:
+          (c.description ? 0.20 : 0)
+        + Math.min((c.features?.length || 0) / 4, 1) * 0.30
+        + (c.address   ? 0.20 : 0)
+        + (c.website   ? 0.10 : 0)
+        + (c.michelinStars > 0 ? 0.20 : 0),
+      }))
+      .sort((a, b) => b._score - a._score)
+      .slice(0, 12);
+
+    if (ranked.length > 0) {
+      renderDiscoverCards(ranked, location, category);
+      if (statusTxt) statusTxt.textContent = `✓ ${ranked.length} places in ${location.split(',')[0]}`;
+      setTimeout(() => { if (statusBar) statusBar.style.display = 'none'; }, 2500);
+    } else {
+      // Overpass returned 0 results — use static curated fallback
+      renderStaticPlaces(category);
+      if (statusTxt) statusTxt.textContent = `Showing curated picks`;
+      setTimeout(() => { if (statusBar) statusBar.style.display = 'none'; }, 2000);
+    }
+
+  } catch(e) {
+    renderStaticPlaces(category);
+    if (statusTxt) statusTxt.textContent = `⚠ Using curated picks (${e.message?.slice(0,30)})`;
+    setTimeout(() => { if (statusBar) statusBar.style.display = 'none'; }, 3000);
+  } finally {
+    discoverAgentRunning = false;
+  }
+}
+
+function renderDiscoverCards(ranked, location, category) {
+  const grid = document.getElementById('placeGrid');
+  if (!grid) return;
+
+  const pL = {1:'$', 2:'$$', 3:'$$$', 4:'$$$$'};
+  const pC = {1:'var(--green)', 2:'var(--teal)', 3:'var(--gold)', 4:'var(--coral)'};
+
+  // Pick a smart emoji based on available tags or fallback to category
+  function placeEmoji(c) {
+    const desc = (c.description || '').toLowerCase();
+    if (desc.includes('ramen') || desc.includes('noodle'))    return '🍜';
+    if (desc.includes('sushi') || desc.includes('japanese'))  return '🍣';
+    if (desc.includes('pizza') || desc.includes('italian'))   return '🍕';
+    if (desc.includes('burger') || desc.includes('american')) return '🍔';
+    if (desc.includes('cafe') || desc.includes('coffee'))     return '☕';
+    if (desc.includes('bakery') || desc.includes('pastry'))   return '🥐';
+    if (desc.includes('bar') || desc.includes('pub'))         return '🍺';
+    if (desc.includes('museum') || desc.includes('gallery'))  return '🖼️';
+    if (desc.includes('temple') || desc.includes('shrine'))   return '⛩️';
+    if (desc.includes('park') || desc.includes('garden'))     return '🌿';
+    if (desc.includes('tower') || desc.includes('castle'))    return '🏰';
+    const catMap = {restaurant:'🍽️', cafe:'☕', bar:'🍷', bakery:'🥐', museum:'🖼️', attraction:'🏛️', all:'📍'};
+    return catMap[category] || '📍';
+  }
+
+  grid.innerHTML = ranked.map((c, i) => {
+    const em     = placeEmoji(c);
+    const isTop  = i === 0;
+    const stars  = c.rating
+      ? '★'.repeat(Math.min(5,Math.round(c.rating))) + '☆'.repeat(Math.max(0,5-Math.round(c.rating)))
+      : '';
+    const price  = c.priceTier
+      ? `<span style="color:${pC[c.priceTier]};font-weight:600">${c.priceRange||pL[c.priceTier]}</span>` : '';
+    const top    = isTop ? `<span style="font-size:9px;padding:1px 6px;background:var(--gold);color:#000;border-radius:6px;font-weight:800;margin-left:5px">TOP</span>` : '';
+    const mich   = c.michelinStars >= 1 ? `<span style="font-size:10px" title="Michelin">${'⭐'.repeat(Math.min(c.michelinStars,3))}</span>` : '';
+    const awards = c.awards?.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">${c.awards.slice(0,2).map(a=>`<span style="padding:1px 7px;background:rgba(232,184,75,0.12);border:1px solid rgba(232,184,75,0.3);border-radius:8px;font-size:9px;color:var(--gold);font-weight:700">${a}</span>`).join('')}</div>` : '';
+
+    // Build a clean description from the OSM data
+    const descText = c.description
+      ? c.description.charAt(0).toUpperCase() + c.description.slice(1)
+      : '';
+
+    const safeName = c.name.replace(/'/g, "\\'");
+
+    return `<div class="place-card" style="${isTop ? 'border-color:rgba(232,184,75,0.4);' : ''}">
+      <div class="place-thumb" style="background:var(--surface2);font-size:38px;display:flex;align-items:center;justify-content:center;position:relative">
+        ${em}
+        ${isTop ? '<div style="position:absolute;top:6px;left:6px;font-size:16px">🏆</div>' : ''}
+      </div>
+      <div class="place-body">
+        <div class="place-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">
+          ${c.name}${top}${mich}
+        </div>
+        ${stars ? `<div class="place-meta" style="margin-bottom:4px">
+          <span class="stars" style="color:var(--gold)">${stars}</span>
+          ${c.rating ? `<span style="font-size:12px;font-weight:600">${c.rating.toFixed(1)}</span>` : ''}
+        </div>` : ''}
+        ${awards}
+        ${c.features?.length ? `<div class="place-tags" style="margin-bottom:5px">${c.features.slice(0,3).map(f=>`<span class="ptag">${f}</span>`).join('')}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          ${price}
+        </div>
+        ${descText ? `<div class="place-desc" style="font-size:11px;color:var(--text3)">${descText.slice(0,100)}</div>` : ''}
+        ${c.address ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">📍 ${c.address}</div>` : ''}
+        <div class="place-actions" style="margin-top:8px">
+          <button class="place-btn" onclick="showOnMap('${safeName}')">📍 Map</button>
+          <button class="place-btn" onclick="askAIAbout('${safeName}')">✦ AI</button>
+          <button class="place-btn add" onclick="quickAddToItinerary('${safeName}','${category}')">+ Add</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function quickAddToItinerary(name, type) {
+  openModal('eventModal');
+  setTimeout(()=>{
+    const n=document.getElementById('eventName'), t=document.getElementById('eventType');
+    if(n) n.value=name;
+    if(t) t.value={restaurant:'food',cafe:'food',bar:'food',bakery:'food',attraction:'attraction',museum:'attraction'}[type]||'attraction';
+  },50);
+  showToast('Pre-filled — pick a day to save.');
+}
+
+function renderStaticPlaces(category) {
+  const all = [
+    {emoji:'🥐',name:'Du Pain et des Idées',type:'bakery',stars:4.9,reviews:2840,tags:['Bakery','Croissants'],price:'€',desc:'Legendary Parisian boulangerie since 1889.'},
+    {emoji:'🍷',name:'Le Comptoir du Relais',type:'restaurant',stars:4.7,reviews:3120,tags:['Bistro','French'],price:'€€',desc:'Saint-Germain gem. Classic French cuisine.'},
+    {emoji:'🖼️',name:"Musée d'Orsay",type:'museum',stars:4.8,reviews:12500,tags:['Museum','Impressionism'],price:'€€',desc:"World's finest Impressionist collection."},
+    {emoji:'☕',name:'Café de Flore',type:'cafe',stars:4.5,reviews:8900,tags:['Historic','Breakfast'],price:'€€',desc:"Literary café since 1887."},
+    {emoji:'🍽️',name:'Septime',type:'restaurant',stars:4.9,reviews:4200,tags:['Michelin','Modern French'],price:'€€€€',desc:'One Michelin star. Outstanding tasting menus.'},
+    {emoji:'🏛️',name:'Sainte-Chapelle',type:'attraction',stars:4.8,reviews:9300,tags:['Gothic','Historic'],price:'€',desc:'Breathtaking 13th-century stained glass.'},
+    {emoji:'🍺',name:'Experimental Cocktail Club',type:'bar',stars:4.6,reviews:1850,tags:['Cocktails','Speakeasy'],price:'€€€',desc:'Pioneer Parisian craft cocktail scene.'},
+    {emoji:'🏰',name:'Château de Versailles',type:'attraction',stars:4.8,reviews:89000,tags:['Palace','History'],price:'€€',desc:"Sun King's masterpiece."},
+  ];
+  const filtered = category==='all'?all:all.filter(p=>p.type===category);
+  const grid = document.getElementById('placeGrid');
+  if (!grid) return;
+  grid.innerHTML = filtered.map(p=>`
+    <div class="place-card">
+      <div class="place-thumb">${p.emoji}</div>
+      <div class="place-body">
+        <div class="place-name">${p.name}</div>
+        <div class="place-meta"><span class="stars">★★★★★</span><span style="font-size:12px;font-weight:600">${p.stars}</span><span class="review-count">(${p.reviews.toLocaleString()})</span></div>
+        <div class="place-tags">${p.tags.map(t=>`<span class="ptag">${t}</span>`).join('')}</div>
+        <div class="price-level" style="color:var(--green)">${p.price}</div>
+        <div class="place-desc">${p.desc}</div>
+        <div class="place-actions">
+          <button class="place-btn" onclick="showOnMap('${p.name}')">📍 Map</button>
+          <button class="place-btn" onclick="askAIAbout('${p.name}')">✦ AI</button>
+          <button class="place-btn add" onclick="quickAddToItinerary('${p.name}','${p.type}')">+ Add</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+
+loadFromStorage();
+updateOverview();
+renderHotelCard();
+// Defer non-visible panel renders until after first paint
+requestIdleCallback(() => {
+  renderItinerary();
+  renderDocs('all');
+  renderPacking();
+  renderBudget();
+  renderRouteStops();
+  syncDiscoverLocation();
+}, { timeout: 800 });
+// Load live data after UI is fully painted
+setTimeout(refreshHeroLiveData, 1500);
+</script>
+
+<!-- Custom confirm modal (replaces window.confirm which crashes WebView2) -->
+<div id="_voy_confirm_overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1a2035;border:1px solid #2a3a55;border-radius:12px;padding:28px 32px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+    <div id="_voy_confirm_title" style="font-size:16px;font-weight:600;color:#e8f4fd;margin-bottom:8px"></div>
+    <div id="_voy_confirm_msg" style="font-size:13px;color:#8899aa;margin-bottom:24px;line-height:1.5"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button id="_voy_confirm_cancel" style="background:transparent;border:1px solid #2a3a55;color:#8899aa;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px">Cancel</button>
+      <button id="_voy_confirm_ok" style="background:#e87070;border:none;color:#fff;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">Delete</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
