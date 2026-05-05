@@ -497,7 +497,7 @@
   .agent-log-line.info    { color:var(--accent); }
   .score-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -5095,8 +5095,8 @@ function switchProfileTab(tab) {
 // Developer: fill in your Supabase project details below.
 // Get these from supabase.com → Project Settings → API
 // ═══════════════════════════════════════════════════════
-const SUPABASE_URL = localStorage.getItem('https://mqjoibfbortewxlydpfh.supabase.co') || '';
-const SUPABASE_KEY = localStorage.getItem('sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH') || '';
+const SUPABASE_URL = localStorage.getItem('voy_sb_url') || '';
+const SUPABASE_KEY = localStorage.getItem('voy_sb_key') || '';
 
 let _supabaseClient = null;
 let _supabaseUser   = null;   // Supabase auth user object
@@ -5104,8 +5104,11 @@ let _voyagerProfile = null;   // voyager_users row
 let _friendsData    = [];
 
 function buildSupabaseClient(url, key) {
-  if (!window.supabase || !url || !key) return null;
-  return window.supabase.createClient(url, key, {
+  if (!url || !key) return null;
+  // window.supabase is the UMD global; supabase.createClient is the entry point
+  const lib = window.supabase || window.Supabase;
+  if (!lib?.createClient) return null;
+  return lib.createClient(url, key, {
     auth: { persistSession: true, storageKey: 'voy_auth_session' }
   });
 }
@@ -5214,14 +5217,19 @@ async function onAuthSuccess(user) {
 
 // ——— SESSION RESTORE ON STARTUP ———
 async function initAuth() {
-  // Check if Supabase credentials are set
+  // Wait up to 5s for Supabase CDN to load
+  let waited = 0;
+  while (!(window.supabase || window.Supabase)?.createClient && waited < 5000) {
+    await new Promise(r => setTimeout(r, 100));
+    waited += 100;
+  }
+
   const url = SUPABASE_URL;
   const key = SUPABASE_KEY;
-
   const configWarn = document.getElementById('authConfigWarning');
+
   if (!url || !key) {
     if (configWarn) configWarn.style.display = 'block';
-    // Dev mode: bypass auth if no Supabase configured
     const screen = document.getElementById('authScreen');
     if (screen) screen.style.display = 'none';
     return;
