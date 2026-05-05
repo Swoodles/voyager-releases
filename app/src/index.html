@@ -457,12 +457,47 @@
   .rc-scores { display:flex;flex-direction:column;gap:4px;min-width:120px; }
   .rc-score-bar { height:4px;border-radius:2px;background:var(--surface3);overflow:hidden;margin-top:2px; }
   .rc-score-fill { height:100%;border-radius:2px;transition:width 0.5s; }
+  /* ——— PROFILE PANEL ——— */
+  .profile-cover { height:160px;border-radius:14px;background:linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a);position:relative;overflow:hidden;margin-bottom:0 }
+  .profile-cover-edit { position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:4px 10px;border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit }
+  .profile-avatar-wrap { position:relative;margin-top:-42px;margin-left:20px;width:84px;height:84px;flex-shrink:0 }
+  .profile-avatar { width:84px;height:84px;border-radius:50%;border:3px solid var(--surface);background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;cursor:pointer }
+  .profile-avatar img { width:100%;height:100%;object-fit:cover }
+  .profile-stat { text-align:center;padding:10px 16px;background:var(--surface2);border-radius:10px;border:1px solid var(--border2);cursor:pointer;transition:border-color 0.15s;flex:1 }
+  .profile-stat:hover { border-color:var(--accent) }
+  .profile-stat-num { font-size:20px;font-weight:800;color:var(--text) }
+  .profile-stat-label { font-size:10px;color:var(--text3);margin-top:2px;font-weight:500 }
+  .profile-trip-card { background:var(--surface2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;transition:border-color 0.15s;cursor:pointer }
+  .profile-trip-card:hover { border-color:var(--accent2) }
+  .profile-trip-thumb { height:90px;background:linear-gradient(135deg,#1a2a4a,#2d1b4e);display:flex;align-items:center;justify-content:center;font-size:36px }
+  .profile-badge { display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:20px;font-size:12px;font-weight:600;color:var(--text2) }
+  .profile-badge.earned { border-color:rgba(232,184,75,0.5);background:rgba(232,184,75,0.1);color:var(--gold) }
+  .passport-stamp { width:70px;height:70px;border-radius:50%;border:2px dashed var(--border2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9px;color:var(--text3);text-align:center;padding:4px;flex-shrink:0 }
+  .passport-stamp.visited { border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,0.08) }
+  /* ——— PHOTOS TAB ——— */
+  .photo-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px }
+  .photo-item { position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface2);border:1px solid var(--border2) }
+  .photo-item img { width:100%;height:100%;object-fit:cover;display:block }
+  .photo-item:hover .photo-overlay { opacity:1 }
+  .photo-overlay { position:absolute;inset:0;background:rgba(0,0,0,0.55);opacity:0;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;gap:8px }
+  .photo-upload-zone { border:2px dashed var(--border2);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:border-color 0.2s }
+  .photo-upload-zone:hover { border-color:var(--accent) }
+  /* ——— DISCORD BADGES ——— */
+  .discord-badge { width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;position:relative;cursor:default;flex-shrink:0 }
+  .discord-badge-tooltip { position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:10px;color:var(--text);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.4) }
+  .discord-badge:hover .discord-badge-tooltip { opacity:1 }
+  /* ——— FRIENDS SYSTEM ——— */
+  .friend-card { display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px }
+  .friend-avatar { width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0 }
+  .friend-status { width:9px;height:9px;border-radius:50%;border:2px solid var(--surface2);position:absolute;bottom:0;right:0 }
+  .online { background:#3ba55d } .away { background:#faa81a } .offline { background:#747f8d }
   .agent-log-line { padding:3px 0;border-bottom:1px solid var(--border);color:var(--text3); }
   .agent-log-line.success { color:var(--green); }
   .agent-log-line.error   { color:var(--coral); }
   .agent-log-line.info    { color:var(--accent); }
   .score-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -508,8 +543,12 @@
   <div class="topbar">
     <h2 id="panelTitle">Overview</h2>
     <div class="topbar-actions">
-      <button class="btn-sm" onclick="exportTrip()">⬇ Export</button>
-      <button class="btn-sm primary" onclick="openModal('eventModal')">+ Add Event</button>
+      <div id="profileTopBtn" onclick="showPanel('profile', document.querySelector('[onclick*=profile]'))" title="My Profile"
+        style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;border:2px solid var(--border2);transition:border-color 0.2s,transform 0.15s;flex-shrink:0"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.transform='scale(1.08)'"
+        onmouseout="this.style.borderColor='var(--border2)';this.style.transform='scale(1)'">
+        <span id="topbarAvatarEmoji">✈️</span>
+      </div>
     </div>
   </div>
   <div class="content">
@@ -810,20 +849,83 @@
       <div class="place-grid" id="placeGrid"></div>
     </div>
 
+    <!-- PROFILE PANEL -->
+    <div id="panel-profile" class="panel">
+      <!-- Cover photo -->
+      <div class="profile-cover" id="profileCover">
+        <button class="profile-cover-edit" onclick="openModal('profileEditModal')">✎ Edit Cover</button>
+      </div>
+      <!-- Avatar + name row -->
+      <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:12px;padding:0 4px">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="profileAvatarEl" onclick="openModal('profileEditModal')">
+            <span id="profileAvatarEmoji">✈️</span>
+          </div>
+        </div>
+        <div style="flex:1;padding-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+            <div id="profileDisplayName" style="font-size:18px;font-weight:800;color:var(--text)">Traveler</div>
+            <!-- Discord-style earned badge bar — click to view all badges -->
+            <div id="discordBadgeBar" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;cursor:pointer" onclick="openBadgesModal()" title="View all badges"></div>
+            <button onclick="openModal('profileEditModal')" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);padding:4px 12px;border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;margin-left:auto">✎ Edit</button>
+          </div>
+          <div id="profileHandle" style="font-size:12px;color:var(--text3);margin-top:1px">@voyager</div>
+          <div id="profileBio" style="font-size:12px;color:var(--text2);margin-top:4px;max-width:400px;line-height:1.4">Travel enthusiast. Always planning the next adventure.</div>
+          <!-- Online status -->
+          <div id="profileOnlineStatus" style="font-size:11px;color:var(--text3);margin-top:5px;display:flex;align-items:center;gap:5px">
+            <div style="width:7px;height:7px;border-radius:50%;background:#747f8d"></div>
+            <span>Not connected · <a href="#" onclick="openModal('supabaseSetupModal');return false" style="color:var(--accent);text-decoration:none">Connect online</a></span>
+          </div>
+        </div>
+      </div>
+      <!-- Instagram-style stats bar -->
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:16px;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);padding:10px 0">
+        <div style="flex:1;text-align:center;border-right:1px solid var(--border2)">
+          <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.1" id="statTrips">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;font-weight:500;letter-spacing:0.3px">trips</div>
+        </div>
+        <div style="flex:1;text-align:center;border-right:1px solid var(--border2)">
+          <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.1" id="statCountries">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;font-weight:500;letter-spacing:0.3px">countries</div>
+        </div>
+        <div style="flex:1;text-align:center;border-right:1px solid var(--border2)">
+          <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.1" id="statPhotos">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;font-weight:500;letter-spacing:0.3px">photos</div>
+        </div>
+        <div style="flex:1;text-align:center;border-right:1px solid var(--border2);cursor:pointer" onclick="openFriendsModal()" title="View friends">
+          <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.1" id="statFriends">0</div>
+          <div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;letter-spacing:0.3px">friends</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.1" id="statDays">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;font-weight:500;letter-spacing:0.3px">days planned</div>
+        </div>
+      </div>
+      <!-- Tabs — Trips, Photos, Passport only. Badges + Friends open via their own elements above -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border2);margin-bottom:16px">
+        <button id="ptab-trips"   onclick="switchProfileTab('trips')"   style="flex:1;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--text);padding:9px 0;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🗺️ Trips</button>
+        <button id="ptab-photos"  onclick="switchProfileTab('photos')"  style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);padding:9px 0;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📸 Photos</button>
+        <button id="ptab-stamps"  onclick="switchProfileTab('stamps')"  style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);padding:9px 0;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🌍 Passport</button>
+      </div>
+      <!-- Tab content -->
+      <div id="profileTabContent"></div>
+    </div>
+
     <!-- EVENTS PANEL -->
     <div id="panel-events" class="panel">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius)">
         <span style="font-size:14px">📍</span>
         <span style="font-size:12px;color:var(--text3);white-space:nowrap">Events in:</span>
-        <input type="text" id="eventsLocation" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;font-family:inherit" placeholder="City or region..." onkeydown="if(event.key==='Enter')searchEvents()">
-        <select id="eventsTimeframe" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;cursor:pointer">
+        <input type="text" id="eventsLocation" style="flex:1;min-width:0;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;font-family:inherit" placeholder="City or region..." onkeydown="if(event.key==='Enter')searchEvents()">
+        <select id="eventsTimeframe" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;cursor:pointer;flex-shrink:0">
           <option value="this week">This week</option>
           <option value="this month" selected>This month</option>
           <option value="next 3 months">Next 3 months</option>
           <option value="this year">This year</option>
         </select>
-        <button class="btn-sm primary" onclick="searchEvents()" style="white-space:nowrap">🔍 Search</button>
-        <button class="btn-sm" onclick="resetEventsLocation()" style="white-space:nowrap">↺ Trip</button>
+        <button class="btn-sm" onclick="resetEventsLocation()" style="white-space:nowrap;flex-shrink:0">↺ Trip</button>
+        <button class="btn-sm primary" onclick="searchEvents()" style="white-space:nowrap;flex-shrink:0">🔍 Search</button>
+        <button class="btn-sm primary" onclick="openModal('eventModal')" style="white-space:nowrap;flex-shrink:0;background:var(--accent2);border-color:var(--accent2)">+ Add Event</button>
       </div>
       <div class="filter-bar" style="margin-bottom:12px">
         <div class="filter-chip active" onclick="filterEventsCat(this,'all')">All</div>
@@ -1533,12 +1635,14 @@ function showPanel(name, el) {
   document.getElementById('panel-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
-  const titles = {overview:'Overview', itinerary:'Itinerary', map:'Map & Routes', discover:'Discover Places', events:'Events Near You', vault:'Documents & Tickets', budget:'Budget Tracker', packing:'Packing List'};
+  const titles = {overview:'Overview', itinerary:'Itinerary', map:'Map & Routes', discover:'Discover Places', events:'Events Near You', profile:'My Profile', vault:'Documents & Tickets', budget:'Budget Tracker', packing:'Packing List'};
   document.getElementById('panelTitle').textContent = titles[name] || name;
   document.getElementById('aiResponse').classList.remove('visible');
   if (name === 'map') {
-    if (!leafletMap) initMap();
-    else setTimeout(() => leafletMap.invalidateSize(), 50);
+    setTimeout(() => {
+      if (!leafletMap) initMap();
+      else leafletMap.invalidateSize();
+    }, 30);
     // Show hotel quick-add button if hotel is set
     const qa = document.getElementById('hotelQuickAdd');
     if (qa) qa.style.display = cd().hotel?.name ? 'block' : 'none';
@@ -1550,6 +1654,7 @@ function showPanel(name, el) {
   if (name === 'budget')    renderBudget();
   if (name === 'discover')  openDiscoverPanel();
   if (name === 'events')    openEventsPanel();
+  if (name === 'profile')   openProfilePanel();
 }
 
 // ——— MODAL ———
@@ -2148,6 +2253,15 @@ const MODE_COLOR   = { walking:'#2dd4b5', cycling:'#e8b84b', driving:'#4f8ef7', 
 const MODE_LABEL   = { walking:'🚶 Walking', cycling:'🚴 Cycling', driving:'🚗 Driving', transit:'🚌 Transit' };
 
 function initMap() {
+  const container = document.getElementById('leaflet-map');
+  if (!container) return;
+
+  // If container has no real height yet (panel still hidden), defer until it does
+  if (container.offsetHeight === 0) {
+    setTimeout(initMap, 60);
+    return;
+  }
+
   const trip = trips[currentTripId];
   const center = trip ? [trip.lat, trip.lng] : [48.8566, 2.3522];
   leafletMap = L.map('leaflet-map', { zoomControl: true }).setView(center, 13);
@@ -2155,8 +2269,9 @@ function initMap() {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd', maxZoom: 19,
   }).addTo(leafletMap);
-  // Close suggestions when clicking map
   leafletMap.on('click', hideSuggestions);
+  // Always invalidate after a short delay to catch any CSS transition
+  setTimeout(() => leafletMap.invalidateSize(), 120);
 }
 
 function setTransportMode(mode) {
@@ -2453,6 +2568,9 @@ async function optimizeRoute() {
       }
     } catch(e) {}
   }
+
+  // Filter out any [0,0] or clearly invalid coordinates before drawing
+  latlngs = latlngs.filter(c => c[0] !== 0 || c[1] !== 0).filter(c => Math.abs(c[0]) <= 90 && Math.abs(c[1]) <= 180);
 
   if (!latlngs || latlngs.length < 2) {
     showToast('Routing error — could not calculate route. Check your connection.');
@@ -4110,12 +4228,20 @@ async function runDiscoverAgent(location, category) {
     } else if (category === 'museum') {
       filters = `node["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  way["tourism"~"museum|gallery"][name](around:${radius},${lat},${lng});\n  node["amenity"="arts_centre"][name](around:${radius},${lat},${lng});`;
     } else if (category === 'attraction') {
-      // Strictly exclude food/drink amenities from attraction results
+      // Broad activities + experiences — explicitly exclude food/drink
       filters = `node["tourism"~"attraction|viewpoint|artwork|theme_park|zoo|aquarium"]["amenity"!~"restaurant|cafe|fast_food|bar|pub"][name](around:${radius},${lat},${lng});
-  way["tourism"~"attraction|viewpoint"]["amenity"!~"restaurant|cafe|fast_food|bar|pub"][name](around:${radius},${lat},${lng});
-  node["historic"~"monument|castle|ruins|memorial|archaeological_site|fort"][name](around:${radius},${lat},${lng});
-  way["historic"~"monument|castle|ruins|fort"][name](around:${radius},${lat},${lng});
-  node["leisure"~"park|nature_reserve"][name](around:${radius},${lat},${lng});`;
+  way["tourism"~"attraction|viewpoint|theme_park|zoo"]["amenity"!~"restaurant|cafe|fast_food|bar|pub"][name](around:${radius},${lat},${lng});
+  node["historic"~"monument|castle|ruins|memorial|archaeological_site|fort|palace"][name](around:${radius},${lat},${lng});
+  way["historic"~"monument|castle|ruins|fort|palace"][name](around:${radius},${lat},${lng});
+  node["leisure"~"park|nature_reserve|garden|water_park|miniature_golf|amusement_arcade"][name](around:${radius},${lat},${lng});
+  way["leisure"~"park|nature_reserve|garden|water_park"][name](around:${radius},${lat},${lng});
+  node["amenity"~"place_of_worship|theatre|cinema"][name](around:${radius},${lat},${lng});
+  way["amenity"~"place_of_worship|theatre|cinema"][name](around:${radius},${lat},${lng});
+  node["attraction"~"big_wheel|boat_trip|river_bus|scenic_railway|cable_car|observation_tower"][name](around:${radius},${lat},${lng});
+  node["man_made"~"observation_tower|lighthouse|pier|bridge"][name](around:${radius},${lat},${lng});
+  way["man_made"~"observation_tower|pier|bridge"][name](around:${radius},${lat},${lng});
+  node["waterway"~"dock|boathouse"][name]["boat"](around:${radius},${lat},${lng});
+  node["shop"~"travel_agency"][name]["tour"](around:${radius},${lat},${lng});`;
     } else {
       // 'all' — query everything in one shot
       filters = `node["amenity"~"restaurant|cafe|bar|pub|fast_food"][name](around:${radius},${lat},${lng});
@@ -4530,9 +4656,9 @@ function filterEventsCat(el, cat) {
 
 async function searchEvents() {
   if (eventsRunning) return;
-  const loc      = document.getElementById('eventsLocation')?.value.trim() || '';
-  const timeframe= document.getElementById('eventsTimeframe')?.value || 'this month';
-  const cat      = eventsCurrentCategory;
+  const loc       = document.getElementById('eventsLocation')?.value.trim() || '';
+  const timeframe = document.getElementById('eventsTimeframe')?.value || 'this month';
+  const cat       = eventsCurrentCategory;
   if (!loc) { showToast('Enter a city to search events.'); return; }
 
   const cacheKey = `${loc}|${cat}|${timeframe}`;
@@ -4540,50 +4666,80 @@ async function searchEvents() {
   const statusEl = document.getElementById('eventsAgentStatus');
   const statusTx = document.getElementById('eventsAgentStatusText');
 
-  // Cache hit
   if (_eventsCache.has(cacheKey)) {
     if (grid) grid.innerHTML = _eventsCache.get(cacheKey);
     return;
   }
 
   eventsRunning = true;
-  if (statusEl) { statusEl.style.display='flex'; }
+  if (statusEl) statusEl.style.display = 'flex';
   if (statusTx) statusTx.textContent = `Searching for events in ${loc}...`;
   if (grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3)"><div style="font-size:30px;margin-bottom:8px">🎟️</div><div style="font-size:13px">Finding events in ${loc}...</div></div>`;
 
-  const catQuery = {
-    convention: 'convention expo trade show conference',
-    festival:   'festival fair celebration',
-    sports:     'sports game match tournament championship',
-    music:      'concert music festival show performance',
-    food:       'food festival wine beer market culinary',
-    exhibition: 'exhibition art gallery museum show',
-    all:        'events shows conventions festivals concerts',
-  }[cat] || 'events';
+  const catLabel = {convention:'conventions and trade shows',festival:'festivals and fairs',sports:'sports events',music:'concerts and music events',food:'food and drink events',exhibition:'art and museum exhibitions',all:'events of all kinds'}[cat]||'events';
 
   try {
-    // Run Bing + Jina in parallel for speed
-    const q1 = encodeURIComponent(`${catQuery} ${loc} ${timeframe} 2025 2026`);
-    const q2 = encodeURIComponent(`upcoming events ${loc} ${timeframe}`);
+    // Fetch raw search content via Jina
+    const q1 = encodeURIComponent(`upcoming ${catLabel} in ${loc} ${timeframe} 2025 2026`);
+    const q2 = encodeURIComponent(`${loc} events schedule ${timeframe}`);
 
     const [r1, r2] = await Promise.allSettled([
-      toolJinaReader(`https://www.bing.com/search?q=${q1}&format=html`),
-      toolJinaReader(`https://www.bing.com/search?q=${q2}&format=html`),
+      toolJinaReader(`https://www.bing.com/search?q=${q1}`),
+      toolJinaReader(`https://www.bing.com/search?q=${q2}`),
     ]);
 
-    const pages = [r1, r2].filter(r => r.status==='fulfilled' && r.value?.content).map(r => r.value);
-    const events = [];
-    const seen   = new Set();
+    const rawText = [r1, r2]
+      .filter(r => r.status === 'fulfilled' && r.value?.content)
+      .map(r => r.value.content)
+      .join('\n\n')
+      .slice(0, 12000);
 
-    for (const page of pages) {
-      const extracted = extractEventsFromText(page.content, loc, cat);
-      for (const ev of extracted) {
-        const key = ev.name.toLowerCase().replace(/\s+/g,'').slice(0,20);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        events.push(ev);
-      }
-    }
+    if (!rawText || rawText.length < 100) throw new Error('No content fetched');
+
+    // ——— Use Claude API to cleanly extract and deduplicate events ———
+    if (statusTx) statusTx.textContent = 'Parsing events with AI...';
+
+    const prompt = `You are an events extraction assistant. From the web search results below, extract real upcoming events in ${loc} for ${timeframe}.
+
+RULES:
+- Only include real, named events (concerts, festivals, conventions, sports games, exhibitions, shows, fairs, markets, etc.)
+- DO NOT include: search UI elements, Bing/browser chrome, privacy policies, image upload prompts, or anything that is clearly not an event
+- Deduplicate: if multiple results mention the same event, merge them into ONE entry
+- Include only events actually in or near ${loc}
+- Category filter: ${cat === 'all' ? 'include all event types' : `only include ${catLabel}`}
+
+Respond ONLY with a valid JSON array (no markdown, no explanation). Each object:
+{"name":"Event Name","date":"Month Day or date range","venue":"Venue name if known","desc":"1-2 sentence description","cat":"convention|festival|sports|music|food|exhibition|event"}
+
+If you find no valid events, return an empty array [].
+
+SEARCH RESULTS:
+${rawText.slice(0, 8000)}`;
+
+    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!apiResp.ok) throw new Error('API error ' + apiResp.status);
+    const apiJson = await apiResp.json();
+    const raw = (apiJson.content?.[0]?.text || '').trim();
+
+    let events = [];
+    try {
+      const cleaned = raw.replace(/^```json\s*/,'').replace(/\s*```$/,'').trim();
+      events = JSON.parse(cleaned);
+      if (!Array.isArray(events)) events = [];
+    } catch(e) { events = []; }
+
+    // Add emoji based on category
+    const catEmoji = {convention:'🎪',festival:'🎉',sports:'🏆',music:'🎵',food:'🍽️',exhibition:'🖼️',event:'🎟️'};
+    events = events.map(ev => ({ ...ev, emoji: catEmoji[ev.cat] || '🎟️' }));
 
     renderEventCards(events, loc);
     const html = grid?.innerHTML || '';
@@ -4591,69 +4747,11 @@ async function searchEvents() {
 
   } catch(err) {
     if (grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3);font-size:13px">⚠ Could not fetch events. Check your connection.</div>`;
+    console.error(err);
   } finally {
     eventsRunning = false;
     if (statusEl) statusEl.style.display = 'none';
   }
-}
-
-function extractEventsFromText(text, loc, cat) {
-  if (!text || text.length < 50) return [];
-  const events = [];
-  const catKeywords = {
-    convention: ['convention','expo','trade show','conference','summit','forum','symposium'],
-    festival:   ['festival','fair','carnival','celebration','parade'],
-    sports:     ['game','match','tournament','championship','race','grand prix','open'],
-    music:      ['concert','tour','performance','gig','show','live music'],
-    food:       ['food festival','wine','beer fest','market','culinary','tasting'],
-    exhibition: ['exhibition','exhibit','gallery','museum','art show','display'],
-    all:        [],
-  };
-  const keywords = catKeywords[cat] || [];
-
-  // Date patterns
-  const dateRe = /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:\s*[-–]\s*(?:\d{1,2}(?:st|nd|rd|th)?)?(?:,?\s*\d{4})?)?/gi;
-
-  // Headline pattern: numbered/bulleted or heading-like
-  const lines = text.split('\n').filter(l => l.trim().length > 5);
-  for (let i = 0; i < lines.length && events.length < 12; i++) {
-    const line = lines[i].trim();
-    if (line.length < 6 || line.length > 200) continue;
-    // Skip nav/ui junk
-    if (/^(home|menu|search|login|sign|cookie|privacy|terms|share|back|next)/i.test(line)) continue;
-    if (/https?:\/\//.test(line)) continue;
-
-    const isRelevant = keywords.length === 0 || keywords.some(k => line.toLowerCase().includes(k));
-    const hasCapital = /^[A-Z\d]/.test(line);
-    if (!isRelevant || !hasCapital) continue;
-
-    // Look for date in this line or next 3 lines
-    let date = '';
-    const ctx = lines.slice(i, i + 4).join(' ');
-    const dm = ctx.match(dateRe);
-    if (dm) date = dm[0];
-
-    // Look for venue in context
-    const venueLine = lines.slice(i + 1, i + 5).find(l => /(arena|center|centre|stadium|hall|park|convention|expo|museum|theater|theatre|garden|square|plaza)/i.test(l));
-    const venue = venueLine ? venueLine.trim().slice(0, 60) : '';
-
-    const desc = lines.slice(i + 1, i + 3).join(' ').replace(/https?:\/\/\S+/g,'').trim().slice(0, 150);
-
-    // Guess category
-    const lc = (line + desc).toLowerCase();
-    let guessedCat = 'event';
-    if (/convention|expo|trade show|conference/i.test(lc)) guessedCat = 'convention';
-    else if (/festival|fair|carnival/i.test(lc)) guessedCat = 'festival';
-    else if (/concert|tour|music|perform/i.test(lc)) guessedCat = 'music';
-    else if (/game|match|race|championship|tournament/i.test(lc)) guessedCat = 'sports';
-    else if (/food|wine|beer|culinary/i.test(lc)) guessedCat = 'food';
-    else if (/exhibition|exhibit|gallery/i.test(lc)) guessedCat = 'exhibition';
-
-    const catEmoji = {convention:'🎪', festival:'🎉', sports:'🏆', music:'🎵', food:'🍽️', exhibition:'🖼️', event:'🎟️'}[guessedCat] || '🎟️';
-
-    events.push({ name: line.replace(/^[\d\.\-\*•]+\s*/, '').trim(), date, venue, desc, cat: guessedCat, emoji: catEmoji });
-  }
-  return events;
 }
 
 function renderEventCards(events, loc) {
@@ -4688,7 +4786,688 @@ function renderEventCards(events, loc) {
     </div>`).join('');
 }
 
+// ═══════════════════════════════════════════════════════
+// ——— PROFILE SYSTEM ———
+// ═══════════════════════════════════════════════════════
+let _profileData = {
+  displayName: 'Traveler', handle: '@voyager',
+  bio: 'Travel enthusiast. Always planning the next adventure.',
+  avatarEmoji: '✈️', coverGradient: 'linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)',
+  savedPlaces: [], visitedCountries: [],
+};
+
+function loadProfile() {
+  try {
+    const saved = localStorage.getItem('voy_profile');
+    if (saved) _profileData = { ..._profileData, ...JSON.parse(saved) };
+  } catch(e) {}
+}
+
+function saveProfile() {
+  _profileData.displayName = document.getElementById('peDisplayName')?.value.trim() || _profileData.displayName;
+  _profileData.handle = document.getElementById('peHandle')?.value.trim() || _profileData.handle;
+  _profileData.bio = document.getElementById('peBio')?.value.trim() || _profileData.bio;
+  localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+  closeModal('profileEditModal');
+  renderProfileUI();
+  showToast('✓ Profile saved!');
+}
+
+function selectAvatarEmoji(e) {
+  _profileData.avatarEmoji = e;
+  const el = document.getElementById('profileAvatarEmoji');
+  if (el) el.textContent = e;
+}
+
+function selectCoverGradient(g) {
+  _profileData.coverGradient = g;
+  const cover = document.getElementById('profileCover');
+  if (cover) cover.style.background = g;
+}
+
+function openProfilePanel() {
+  loadProfile();
+  renderProfileUI();
+  renderDiscordBadges();
+  switchProfileTab('trips');
+}
+
+function renderProfileUI() {
+  const p = _profileData;
+  const el = (id) => document.getElementById(id);
+  if (el('profileDisplayName')) el('profileDisplayName').textContent = p.displayName;
+  if (el('profileHandle'))      el('profileHandle').textContent = p.handle.startsWith('@') ? p.handle : '@' + p.handle;
+  if (el('profileBio'))         el('profileBio').textContent = p.bio;
+  if (el('profileAvatarEmoji')) el('profileAvatarEmoji').textContent = p.avatarEmoji;
+  if (el('topbarAvatarEmoji'))  el('topbarAvatarEmoji').textContent  = p.avatarEmoji;
+  if (el('profileCover'))       el('profileCover').style.background = p.coverGradient;
+
+  const tripCount = Object.keys(trips).length;
+  const countries = new Set(Object.values(trips).map(t => (t.destination||'').split(',').pop().trim()).filter(Boolean));
+  const daysPlanned = Object.values(tripData).reduce((acc, td) => acc + (td.days?.length || 0), 0);
+  const photos = getPhotos();
+
+  if (el('statTrips'))     el('statTrips').textContent = tripCount;
+  if (el('statCountries')) el('statCountries').textContent = countries.size;
+  if (el('statPhotos'))    el('statPhotos').textContent = photos.length;
+  if (el('statFriends'))   el('statFriends').textContent = _friendsData.length;
+  if (el('statDays'))      el('statDays').textContent = daysPlanned;
+
+  updateOnlineStatus(!!_supabaseUser);
+
+  if (el('peDisplayName')) el('peDisplayName').value = p.displayName;
+  if (el('peHandle'))      el('peHandle').value = p.handle;
+  if (el('peBio'))         el('peBio').value = p.bio;
+}
+
+// ——— DISCORD-STYLE BADGE BAR ———
+function renderDiscordBadges() {
+  const bar = document.getElementById('discordBadgeBar');
+  if (!bar) return;
+  const tripCount = Object.keys(trips).length;
+  const countries = new Set(Object.values(trips).map(t => (t.destination||'').split(',').pop().trim()).filter(Boolean));
+  const daysPlanned = Object.values(tripData).reduce((a, td) => a + (td.days?.length||0), 0);
+  const allBadges = [
+    { icon:'🎒', label:'First Trip',      earned: tripCount >= 1,      color:'#5865f2' },
+    { icon:'🧭', label:'Explorer',         earned: tripCount >= 3,      color:'#57f287' },
+    { icon:'🌍', label:'Globetrotter',     earned: countries.size >= 5, color:'#fee75c' },
+    { icon:'📅', label:'Master Planner',   earned: daysPlanned >= 7,    color:'#eb459e' },
+    { icon:'🔍', label:'Discoverer',       earned: !!localStorage.getItem('voy_discoverUsed'), color:'#5865f2' },
+    { icon:'🗺️', label:'Navigator',        earned: !!localStorage.getItem('voy_routeUsed'),   color:'#ed4245' },
+    { icon:'✈️', label:'Jetsetter',        earned: tripCount >= 10,     color:'#fee75c' },
+    { icon:'🏔️', label:'Adventurer',       earned: countries.size >= 10,color:'#57f287' },
+    { icon:'👥', label:'Social',           earned: !!_supabaseUser,     color:'#5865f2' },
+    { icon:'📸', label:'Photographer',     earned: getPhotos().length >= 5, color:'#eb459e' },
+  ];
+  const earned = allBadges.filter(b => b.earned);
+  bar.innerHTML = earned.map(b => `
+    <div class="discord-badge" style="background:${b.color}22;border:1.5px solid ${b.color}66" title="${b.label}">
+      <span>${b.icon}</span>
+      <div class="discord-badge-tooltip">${b.label}</div>
+    </div>`).join('');
+}
+
+// ——— PHOTOS SYSTEM ———
+function getPhotos() {
+  try { return JSON.parse(localStorage.getItem('voy_photos') || '[]'); } catch(e) { return []; }
+}
+function savePhotos(photos) {
+  localStorage.setItem('voy_photos', JSON.stringify(photos));
+  const el = document.getElementById('statPhotos');
+  if (el) el.textContent = photos.length;
+}
+
+let _lightboxPhotos = [], _lightboxIdx = 0;
+function openLightbox(photos, idx) {
+  _lightboxPhotos = photos; _lightboxIdx = idx;
+  const lb = document.getElementById('photoLightbox');
+  if (lb) lb.style.display = 'flex';
+  renderLightboxPhoto();
+}
+function closeLightbox() {
+  const lb = document.getElementById('photoLightbox');
+  if (lb) lb.style.display = 'none';
+}
+function lightboxNav(dir) {
+  _lightboxIdx = (_lightboxIdx + dir + _lightboxPhotos.length) % _lightboxPhotos.length;
+  renderLightboxPhoto();
+}
+function renderLightboxPhoto() {
+  const p = _lightboxPhotos[_lightboxIdx];
+  if (!p) return;
+  document.getElementById('lightboxImg').src = p.dataUrl;
+  document.getElementById('lightboxCaption').textContent = p.caption || '';
+}
+
+function deletePhoto(id) {
+  const photos = getPhotos().filter(p => p.id !== id);
+  savePhotos(photos);
+  switchProfileTab('photos');
+  renderDiscordBadges();
+}
+
+function triggerPhotoUpload() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+  input.onchange = async (e) => {
+    const photos = getPhotos();
+    const files = Array.from(e.target.files).slice(0, 20);
+    for (const file of files) {
+      if (file.size > 8 * 1024 * 1024) { showToast(`${file.name} is too large (max 8MB).`); continue; }
+      const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
+      const tripId = currentTripId;
+      const tripName = trips[tripId]?.name || '';
+      photos.push({ id: Date.now() + Math.random(), dataUrl, caption: '', tripId, tripName, timestamp: Date.now() });
+    }
+    savePhotos(photos);
+    switchProfileTab('photos');
+    renderDiscordBadges();
+    showToast(`✓ ${files.length} photo${files.length>1?'s':''} added`);
+  };
+  input.click();
+}
+
+// ——— PROFILE TAB SWITCHER ———
+let _profileTab = 'trips';
+function switchProfileTab(tab) {
+  _profileTab = tab;
+  const allTabs = ['trips','photos','stamps','badges','friends'];
+  allTabs.forEach(t => {
+    const btn = document.getElementById('ptab-' + t);
+    if (btn) {
+      btn.style.borderBottomColor = t === tab ? 'var(--accent)' : 'transparent';
+      btn.style.color = t === tab ? 'var(--text)' : 'var(--text3)';
+      btn.style.fontWeight = t === tab ? '700' : '600';
+    }
+  });
+
+  const content = document.getElementById('profileTabContent');
+  if (!content) return;
+
+  // ——— TRIPS TAB ———
+  if (tab === 'trips') {
+    const tripList = Object.entries(trips);
+    if (!tripList.length) { content.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3)">No trips yet. Create your first trip!</div>`; return; }
+    const gradients = ['linear-gradient(135deg,#1a2a4a,#2d1b4e)','linear-gradient(135deg,#0f2027,#203a43)','linear-gradient(135deg,#4a1a1a,#4e2d1b)','linear-gradient(135deg,#1a4a2a,#1b4e2d)','linear-gradient(135deg,#1a1a4a,#2d1b4e)'];
+    content.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+      ${tripList.map(([id, trip], i) => {
+        const td = tripData[id];
+        const days = td?.days?.length || 0;
+        const evts = td?.days?.reduce((a,d) => a + (d.events?.length||0), 0) || 0;
+        return `<div class="profile-trip-card" onclick="switchTrip('${id}');showPanel('overview',document.querySelector('[onclick*=overview]'))">
+          <div class="profile-trip-thumb" style="background:${gradients[i%gradients.length]}">${trip.emoji||'✈️'}</div>
+          <div style="padding:10px 12px">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px">${trip.name}</div>
+            <div style="font-size:11px;color:var(--text3)">${trip.destination||'Destination TBD'}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">${days} day${days!==1?'s':''} · ${evts} event${evts!==1?'s':''}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // ——— PHOTOS TAB ———
+  else if (tab === 'photos') {
+    const photos = getPhotos();
+    const grouped = {};
+    photos.forEach(p => { const k = p.tripName||'Other'; if (!grouped[k]) grouped[k]=[]; grouped[k].push(p); });
+    content.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn-sm primary" onclick="triggerPhotoUpload()">📷 Upload Photos</button>
+      </div>
+      ${!photos.length ? `
+        <div class="photo-upload-zone" onclick="triggerPhotoUpload()">
+          <div style="font-size:40px;margin-bottom:10px">📸</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Add travel photos</div>
+          <div style="font-size:12px;color:var(--text3)">Click to upload from your device</div>
+        </div>` :
+        Object.entries(grouped).map(([tripName, tphotos]) => `
+          <div style="margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">${tripName}</div>
+            <div class="photo-grid">
+              ${tphotos.map((p, idx) => `
+                <div class="photo-item" onclick="openLightbox(${JSON.stringify(tphotos).replace(/"/g,'&quot;')}, ${idx})">
+                  <img src="${p.dataUrl}" loading="lazy">
+                  <div class="photo-overlay">
+                    <button onclick="event.stopPropagation();deletePhoto('${p.id}')" style="background:rgba(237,66,69,0.85);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px">🗑</button>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')
+      }`;
+  }
+
+  // ——— PASSPORT TAB ———
+  else if (tab === 'stamps') {
+    const countries = [...new Set(Object.values(trips).map(t => { const parts=(t.destination||'').split(','); return parts[parts.length-1].trim(); }).filter(Boolean))];
+    const flags = {'France':'🇫🇷','Japan':'🇯🇵','United States':'🇺🇸','USA':'🇺🇸','Italy':'🇮🇹','Spain':'🇪🇸','Germany':'🇩🇪','UK':'🇬🇧','United Kingdom':'🇬🇧','Australia':'🇦🇺','Canada':'🇨🇦','Thailand':'🇹🇭','Mexico':'🇲🇽','Brazil':'🇧🇷','Netherlands':'🇳🇱','Portugal':'🇵🇹','Greece':'🇬🇷','Turkey':'🇹🇷','India':'🇮🇳','China':'🇨🇳','South Korea':'🇰🇷','Singapore':'🇸🇬','UAE':'🇦🇪','Morocco':'🇲🇦','Argentina':'🇦🇷'};
+    content.innerHTML = `
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">🌍 Countries Visited (${countries.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${countries.length ? countries.map(c=>`<div class="passport-stamp visited"><div style="font-size:22px">${flags[c]||'🌍'}</div><div style="font-size:8px;margin-top:2px;font-weight:700">${c.slice(0,10)}</div></div>`).join('') : '<div style="color:var(--text3);font-size:12px">Add trips with destinations to collect stamps!</div>'}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">🗺️ Bucket List</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${['🇯🇵 Japan','🇮🇹 Italy','🇳🇿 New Zealand','🇵🇪 Peru','🇮🇸 Iceland','🇰🇪 Kenya','🇻🇳 Vietnam','🇲🇦 Morocco'].map(c=>`<div class="passport-stamp">${c.split(' ')[0]}<div style="font-size:8px;margin-top:1px">${c.split(' ').slice(1).join(' ')}</div></div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ——— BADGES TAB (Discord-style full view) ———
+  else if (tab === 'badges') {
+    const tripCount = Object.keys(trips).length;
+    const countries = new Set(Object.values(trips).map(t=>(t.destination||'').split(',').pop().trim()).filter(Boolean));
+    const daysPlanned = Object.values(tripData).reduce((a,td)=>a+(td.days?.length||0),0);
+    const allBadges = [
+      { icon:'🎒', label:'First Trip',      desc:'Create your first trip',           color:'#5865f2', earned: tripCount>=1 },
+      { icon:'🧭', label:'Explorer',         desc:'Plan 3 or more trips',             color:'#57f287', earned: tripCount>=3 },
+      { icon:'🌍', label:'Globetrotter',     desc:'Visit 5+ different countries',     color:'#fee75c', earned: countries.size>=5 },
+      { icon:'📅', label:'Master Planner',   desc:'Plan 7+ days of activities',       color:'#eb459e', earned: daysPlanned>=7 },
+      { icon:'🔍', label:'Discoverer',       desc:'Use the Discover tab',             color:'#5865f2', earned: !!localStorage.getItem('voy_discoverUsed') },
+      { icon:'🗺️', label:'Navigator',        desc:'Calculate a route',                color:'#ed4245', earned: !!localStorage.getItem('voy_routeUsed') },
+      { icon:'✈️', label:'Jetsetter',        desc:'Plan 10+ trips',                   color:'#fee75c', earned: tripCount>=10 },
+      { icon:'🏔️', label:'Adventurer',       desc:'Visit 10+ countries',              color:'#57f287', earned: countries.size>=10 },
+      { icon:'👥', label:'Social Traveler',  desc:'Connect your Voyager account',     color:'#5865f2', earned: !!_supabaseUser },
+      { icon:'📸', label:'Photographer',     desc:'Upload 5+ travel photos',          color:'#eb459e', earned: getPhotos().length>=5 },
+      { icon:'🤝', label:'Trip Sharer',      desc:'Share a trip with a friend',       color:'#57f287', earned: !!localStorage.getItem('voy_tripShared') },
+      { icon:'🌐', label:'World Citizen',    desc:'Visit 15+ countries',              color:'#fee75c', earned: countries.size>=15 },
+    ];
+    // Earned at top, locked below — Discord style
+    const earnedBadges  = allBadges.filter(b => b.earned);
+    const lockedBadges  = allBadges.filter(b => !b.earned);
+    const badgeCard = (b, locked) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid ${locked?'var(--border2)':`${b.color}44`};border-radius:10px;opacity:${locked?'0.45':'1'}">
+        <div style="width:42px;height:42px;border-radius:50%;background:${locked?'var(--surface3)':`${b.color}22`};border:2px solid ${locked?'var(--border2)':`${b.color}88`};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${b.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:12px;color:${locked?'var(--text3)':`${b.color}`}">${b.label}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:1px">${b.desc}</div>
+        </div>
+        ${!locked ? `<div style="font-size:10px;font-weight:800;color:${b.color}">✓</div>` : '<div style="font-size:10px;color:var(--text3)">🔒</div>'}
+      </div>`;
+    content.innerHTML = `
+      ${earnedBadges.length ? `<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Earned (${earnedBadges.length})</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${earnedBadges.map(b=>badgeCard(b,false)).join('')}</div>` : ''}
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Locked (${lockedBadges.length})</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${lockedBadges.map(b=>badgeCard(b,true)).join('')}</div>`;
+  }
+
+  // ——— FRIENDS TAB ———
+  else if (tab === 'friends') {
+    if (!_supabaseClient || !_supabaseUser) {
+      content.innerHTML = `
+        <div style="text-align:center;padding:40px 20px">
+          <div style="font-size:48px;margin-bottom:12px">🌐</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Connect to go online</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:18px;line-height:1.6">Add friends, share trips, and see what fellow Voyagers are planning. Powered by Supabase (free).</div>
+          <button class="btn-sm primary" onclick="openModal('supabaseSetupModal')" style="padding:8px 20px;font-size:13px">🔌 Connect Now</button>
+        </div>`;
+      return;
+    }
+    renderFriendsTab(content);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ——— VOYAGER AUTH + SUPABASE ———
+// Developer: fill in your Supabase project details below.
+// Get these from supabase.com → Project Settings → API
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL = localStorage.getItem('https://mqjoibfbortewxlydpfh.supabase.co') || '';
+const SUPABASE_KEY = localStorage.getItem('sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH') || '';
+
+let _supabaseClient = null;
+let _supabaseUser   = null;   // Supabase auth user object
+let _voyagerProfile = null;   // voyager_users row
+let _friendsData    = [];
+
+function buildSupabaseClient(url, key) {
+  if (!window.supabase || !url || !key) return null;
+  return window.supabase.createClient(url, key, {
+    auth: { persistSession: true, storageKey: 'voy_auth_session' }
+  });
+}
+
+// ——— AUTH SCREEN ———
+function switchAuthTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('authLoginForm').style.display  = isLogin ? 'flex' : 'none';
+  document.getElementById('authSignupForm').style.display = isLogin ? 'none' : 'flex';
+  document.getElementById('authTabLogin').style.background  = isLogin ? 'var(--accent)' : 'transparent';
+  document.getElementById('authTabLogin').style.color       = isLogin ? '#fff' : 'var(--text3)';
+  document.getElementById('authTabSignup').style.background = isLogin ? 'transparent' : 'var(--accent)';
+  document.getElementById('authTabSignup').style.color      = isLogin ? 'var(--text3)' : '#fff';
+}
+
+async function doLogin() {
+  const email    = document.getElementById('authLoginEmail')?.value.trim();
+  const password = document.getElementById('authLoginPassword')?.value;
+  const errEl    = document.getElementById('authLoginError');
+  if (!email || !password) { if (errEl) errEl.textContent = 'Please enter your email and password.'; return; }
+  if (!_supabaseClient) { if (errEl) errEl.textContent = 'Service unavailable — contact support.'; return; }
+  if (errEl) errEl.textContent = 'Signing in...';
+  try {
+    const { data, error } = await _supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await onAuthSuccess(data.user);
+  } catch(e) {
+    if (errEl) errEl.textContent = e.message || 'Login failed. Check your credentials.';
+  }
+}
+
+async function doSignup() {
+  const name     = document.getElementById('authSignupName')?.value.trim();
+  const handle   = document.getElementById('authSignupHandle')?.value.trim().replace(/^@/,'');
+  const email    = document.getElementById('authSignupEmail')?.value.trim();
+  const password = document.getElementById('authSignupPassword')?.value;
+  const confirm  = document.getElementById('authSignupConfirm')?.value;
+  const errEl    = document.getElementById('authSignupError');
+
+  if (!name || !handle || !email || !password) { if (errEl) errEl.textContent = 'All fields are required.'; return; }
+  if (!/^[a-z0-9_]{2,30}$/.test(handle)) { if (errEl) errEl.textContent = 'Username must be 2-30 chars: letters, numbers, underscore only.'; return; }
+  if (password.length < 8) { if (errEl) errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (password !== confirm) { if (errEl) errEl.textContent = 'Passwords do not match.'; return; }
+  if (!_supabaseClient) { if (errEl) errEl.textContent = 'Service unavailable — contact support.'; return; }
+
+  if (errEl) errEl.textContent = 'Checking username...';
+
+  // Check username availability
+  const { data: existing } = await _supabaseClient.from('voyager_users').select('id').eq('username', handle).maybeSingle();
+  if (existing) { if (errEl) errEl.textContent = `@${handle} is already taken. Choose another.`; return; }
+
+  if (errEl) errEl.textContent = 'Creating account...';
+  try {
+    const { data, error } = await _supabaseClient.auth.signUp({ email, password });
+    if (error) throw error;
+
+    // Create voyager_users profile row
+    await _supabaseClient.from('voyager_users').insert({
+      id: data.user.id,
+      username: handle,
+      display_name: name,
+      avatar_emoji: '✈️',
+      bio: '',
+    });
+
+    // Pre-fill local profile
+    _profileData.displayName = name;
+    _profileData.handle = '@' + handle;
+    _profileData.avatarEmoji = '✈️';
+    localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+
+    await onAuthSuccess(data.user);
+  } catch(e) {
+    if (errEl) errEl.textContent = e.message || 'Sign up failed. Try a different email.';
+  }
+}
+
+async function onAuthSuccess(user) {
+  _supabaseUser = user;
+
+  // Load voyager profile from DB
+  const { data: prof } = await _supabaseClient.from('voyager_users').select('*').eq('id', user.id).maybeSingle();
+  _voyagerProfile = prof;
+
+  // Merge DB profile into local profile data
+  if (prof) {
+    _profileData.displayName = prof.display_name || _profileData.displayName;
+    _profileData.handle      = '@' + prof.username;
+    _profileData.avatarEmoji = prof.avatar_emoji || _profileData.avatarEmoji;
+    _profileData.bio         = prof.bio || _profileData.bio;
+    if (prof.cover_gradient) _profileData.coverGradient = prof.cover_gradient;
+    localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+  }
+
+  // Dismiss auth screen
+  const screen = document.getElementById('authScreen');
+  if (screen) { screen.style.opacity = '0'; screen.style.transition = 'opacity 0.4s'; setTimeout(() => screen.style.display = 'none', 400); }
+
+  // Sync topbar avatar
+  const el = document.getElementById('topbarAvatarEmoji');
+  if (el) el.textContent = _profileData.avatarEmoji;
+
+  subscribeToNotifications();
+  showToast(`✓ Welcome, ${_profileData.displayName}!`);
+}
+
+// ——— SESSION RESTORE ON STARTUP ———
+async function initAuth() {
+  // Check if Supabase credentials are set
+  const url = SUPABASE_URL;
+  const key = SUPABASE_KEY;
+
+  const configWarn = document.getElementById('authConfigWarning');
+  if (!url || !key) {
+    if (configWarn) configWarn.style.display = 'block';
+    // Dev mode: bypass auth if no Supabase configured
+    const screen = document.getElementById('authScreen');
+    if (screen) screen.style.display = 'none';
+    return;
+  }
+
+  _supabaseClient = buildSupabaseClient(url, key);
+  if (!_supabaseClient) {
+    if (configWarn) configWarn.style.display = 'block';
+    return;
+  }
+
+  // Try to restore existing session
+  const { data: { session } } = await _supabaseClient.auth.getSession();
+  if (session?.user) {
+    await onAuthSuccess(session.user);
+  }
+  // Otherwise auth screen stays visible
+
+  // Listen for future auth state changes
+  _supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user && !_supabaseUser) {
+      await onAuthSuccess(session.user);
+    }
+    if (event === 'SIGNED_OUT') {
+      _supabaseUser = null; _voyagerProfile = null;
+      const screen = document.getElementById('authScreen');
+      if (screen) { screen.style.opacity='1'; screen.style.display='flex'; }
+    }
+  });
+}
+
+async function signOut() {
+  if (_supabaseClient) await _supabaseClient.auth.signOut();
+  _supabaseUser = null; _voyagerProfile = null;
+  const screen = document.getElementById('authScreen');
+  if (screen) { screen.style.opacity='1'; screen.style.display='flex'; }
+  showToast('Signed out.');
+}
+
+// ——— BADGES MODAL ———
+function openBadgesModal() {
+  const modal = document.getElementById('badgesModal');
+  const content = document.getElementById('badgesModalContent');
+  if (!modal || !content) return;
+  modal.style.display = 'flex';
+
+  const tripCount = Object.keys(trips).length;
+  const countries = new Set(Object.values(trips).map(t=>(t.destination||'').split(',').pop().trim()).filter(Boolean));
+  const daysPlanned = Object.values(tripData).reduce((a,td)=>a+(td.days?.length||0),0);
+  const allBadges = [
+    { icon:'🎒', label:'First Trip',      desc:'Create your first trip',           color:'#5865f2', earned: tripCount>=1 },
+    { icon:'🧭', label:'Explorer',         desc:'Plan 3 or more trips',             color:'#57f287', earned: tripCount>=3 },
+    { icon:'🌍', label:'Globetrotter',     desc:'Visit 5+ different countries',     color:'#fee75c', earned: countries.size>=5 },
+    { icon:'📅', label:'Master Planner',   desc:'Plan 7+ days of activities',       color:'#eb459e', earned: daysPlanned>=7 },
+    { icon:'🔍', label:'Discoverer',       desc:'Use the Discover tab',             color:'#5865f2', earned: !!localStorage.getItem('voy_discoverUsed') },
+    { icon:'🗺️', label:'Navigator',        desc:'Calculate a route',                color:'#ed4245', earned: !!localStorage.getItem('voy_routeUsed') },
+    { icon:'✈️', label:'Jetsetter',        desc:'Plan 10+ trips',                   color:'#fee75c', earned: tripCount>=10 },
+    { icon:'🏔️', label:'Adventurer',       desc:'Visit 10+ countries',              color:'#57f287', earned: countries.size>=10 },
+    { icon:'👥', label:'Social Traveler',  desc:'Connect your Voyager account',     color:'#5865f2', earned: !!_supabaseUser },
+    { icon:'📸', label:'Photographer',     desc:'Upload 5+ travel photos',          color:'#eb459e', earned: getPhotos().length>=5 },
+    { icon:'🤝', label:'Trip Sharer',      desc:'Share a trip with a friend',       color:'#57f287', earned: !!localStorage.getItem('voy_tripShared') },
+    { icon:'🌐', label:'World Citizen',    desc:'Visit 15+ countries',              color:'#fee75c', earned: countries.size>=15 },
+  ];
+  const badgeCard = (b) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid ${b.earned?`${b.color}44`:'var(--border2)'};border-radius:10px;opacity:${b.earned?'1':'0.42'}">
+      <div style="width:42px;height:42px;border-radius:50%;background:${b.earned?`${b.color}22`:'var(--surface3)'};border:2px solid ${b.earned?`${b.color}88`:'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${b.icon}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:12px;color:${b.earned?b.color:'var(--text3)'}">${b.label}</div><div style="font-size:10px;color:var(--text3);margin-top:1px">${b.desc}</div></div>
+      <div style="font-size:11px;font-weight:800;color:${b.earned?b.color:'var(--text3)'}">${b.earned?'✓':'🔒'}</div>
+    </div>`;
+  const earned = allBadges.filter(b=>b.earned);
+  const locked = allBadges.filter(b=>!b.earned);
+  content.innerHTML = `
+    ${earned.length?`<div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:7px;text-transform:uppercase;letter-spacing:0.5px">Earned (${earned.length})</div><div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px">${earned.map(badgeCard).join('')}</div>`:''}
+    <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:7px;text-transform:uppercase;letter-spacing:0.5px">Locked (${locked.length})</div>
+    <div style="display:flex;flex-direction:column;gap:5px">${locked.map(badgeCard).join('')}</div>`;
+}
+function closeBadgesModal() {
+  const m = document.getElementById('badgesModal');
+  if (m) m.style.display = 'none';
+}
+
+// ——— FRIENDS MODAL ———
+async function openFriendsModal() {
+  const modal = document.getElementById('friendsModal');
+  const content = document.getElementById('friendsModalContent');
+  if (!modal || !content) return;
+  modal.style.display = 'flex';
+
+  if (!_supabaseClient || !_supabaseUser) {
+    content.innerHTML = `
+      <div style="text-align:center;padding:30px 16px">
+        <div style="font-size:40px;margin-bottom:10px">🌐</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">You're not signed in</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Create an account or log in to add friends and share trips.</div>
+        <button class="btn-sm primary" onclick="closeFriendsModal();const s=document.getElementById('authScreen');if(s){s.style.opacity='1';s.style.display='flex';}" style="padding:8px 20px;font-size:13px">Sign In</button>
+      </div>`;
+    return;
+  }
+
+  content.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:8px">
+      <input type="text" id="fmSearchInput" class="modal-input" style="flex:1;margin:0" placeholder="Search @username...">
+      <button class="btn-sm primary" onclick="fmSearch()">Search</button>
+    </div>
+    <div id="fmSearchResult"></div>
+    <div id="fmRequests"></div>
+    <div id="fmList"><div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Loading...</div></div>
+    <div id="fmReceived"></div>
+  </div>`;
+  await fmLoadFriends();
+  await fmLoadReceived();
+}
+function closeFriendsModal() {
+  const m = document.getElementById('friendsModal');
+  if (m) m.style.display = 'none';
+}
+
+async function fmSearch() {
+  const q = document.getElementById('fmSearchInput')?.value.trim().replace(/^@/,'').toLowerCase();
+  const el = document.getElementById('fmSearchResult');
+  if (!q || !el) return;
+  el.innerHTML = `<div style="color:var(--text3);font-size:12px">Searching...</div>`;
+  const { data } = await _supabaseClient.from('voyager_users').select('id,username,display_name,avatar_emoji,bio').eq('username',q).maybeSingle();
+  if (!data) { el.innerHTML=`<div style="color:var(--text3);font-size:12px">No user found with @${q}</div>`; return; }
+  if (data.id === _supabaseUser.id) { el.innerHTML=`<div style="color:var(--text3);font-size:12px">That's you!</div>`; return; }
+  el.innerHTML=`<div class="friend-card" style="margin-top:4px">
+    <div class="friend-avatar">${data.avatar_emoji||'✈️'}</div>
+    <div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">${data.display_name||data.username}</div><div style="font-size:11px;color:var(--text3)">@${data.username}</div></div>
+    <button class="btn-sm primary" onclick="fmSendRequest('${data.id}','${data.username}')">+ Add</button>
+  </div>`;
+}
+
+async function fmSendRequest(friendId, username) {
+  const { error } = await _supabaseClient.from('voyager_friends').insert({ user_id:_supabaseUser.id, friend_id:friendId, status:'pending' });
+  if (error) { showToast('Could not send: '+error.message); return; }
+  showToast(`✓ Request sent to @${username}!`);
+  document.getElementById('fmSearchResult').innerHTML='';
+}
+
+async function fmRespondRequest(reqId, accept) {
+  if (accept) await _supabaseClient.from('voyager_friends').update({status:'accepted'}).eq('id',reqId);
+  else await _supabaseClient.from('voyager_friends').delete().eq('id',reqId);
+  showToast(accept?'✓ Friend added!':'Request declined.');
+  await fmLoadFriends();
+  const el=document.getElementById('statFriends'); if(el) el.textContent=_friendsData.length;
+}
+
+async function fmLoadFriends() {
+  const listEl=document.getElementById('fmList'), reqEl=document.getElementById('fmRequests');
+  if (!listEl) return;
+
+  const {data:incoming}=await _supabaseClient.from('voyager_friends').select('id,user_id,voyager_users!voyager_friends_user_id_fkey(username,display_name,avatar_emoji)').eq('friend_id',_supabaseUser.id).eq('status','pending');
+  if (reqEl&&incoming?.length) reqEl.innerHTML=`<div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase">Pending (${incoming.length})</div>${incoming.map(r=>{const u=r.voyager_users;return`<div class="friend-card" style="margin-bottom:5px"><div class="friend-avatar">${u?.avatar_emoji||'✈️'}</div><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">${u?.display_name||u?.username}</div><div style="font-size:11px;color:var(--text3)">@${u?.username}</div></div><button class="btn-sm primary" onclick="fmRespondRequest('${r.id}',true)" style="font-size:11px">✓</button><button class="btn-sm" onclick="fmRespondRequest('${r.id}',false)" style="font-size:11px">✕</button></div>`;}).join('')}`;
+
+  const {data:f1}=await _supabaseClient.from('voyager_friends').select('friend_id,voyager_users!voyager_friends_friend_id_fkey(id,username,display_name,avatar_emoji,bio)').eq('user_id',_supabaseUser.id).eq('status','accepted');
+  const {data:f2}=await _supabaseClient.from('voyager_friends').select('user_id,voyager_users!voyager_friends_user_id_fkey(id,username,display_name,avatar_emoji,bio)').eq('friend_id',_supabaseUser.id).eq('status','accepted');
+  _friendsData=[...(f1||[]).map(f=>f.voyager_users),...(f2||[]).map(f=>f.voyager_users)].filter(Boolean);
+
+  const statEl=document.getElementById('statFriends'); if(statEl) statEl.textContent=_friendsData.length;
+
+  listEl.innerHTML=_friendsData.length?`<div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase">Friends (${_friendsData.length})</div><div style="display:flex;flex-direction:column;gap:5px">${_friendsData.map(f=>`<div class="friend-card"><div class="friend-avatar">${f.avatar_emoji||'✈️'}</div><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:var(--text)">${f.display_name||f.username}</div><div style="font-size:11px;color:var(--text3)">@${f.username}</div></div><button class="btn-sm" onclick="shareTripWithFriend('${f.id}','${(f.display_name||f.username).replace(/'/g,"\\'")}')">📤 Share</button></div>`).join('')}</div>`:
+  `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No friends yet — search by @username above!</div>`;
+}
+
+async function fmLoadReceived() {
+  const el=document.getElementById('fmReceived'); if(!el) return;
+  const {data}=await _supabaseClient.from('voyager_shared_trips').select('*').eq('to_user_id',_supabaseUser.id).order('created_at',{ascending:false}).limit(8);
+  if (!data?.length) return;
+  el.innerHTML=`<div style="font-size:10px;font-weight:700;color:var(--text3);margin:10px 0 6px;text-transform:uppercase">Shared With You (${data.length})</div><div style="display:flex;flex-direction:column;gap:5px">${data.map(t=>`<div class="friend-card" style="flex-direction:column;align-items:flex-start;gap:7px"><div style="display:flex;align-items:center;gap:8px;width:100%"><div style="font-size:20px">📦</div><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">${t.trip_name}</div><div style="font-size:10px;color:var(--text3)">${new Date(t.created_at).toLocaleDateString()}</div></div><button class="btn-sm primary" onclick="importSharedTrip(${JSON.stringify(t).replace(/"/g,'&quot;')})" style="font-size:11px">⬇ Import</button></div>${t.message?`<div style="font-size:11px;color:var(--text2);padding:5px 8px;background:var(--surface3);border-radius:6px;width:100%;box-sizing:border-box">"${t.message}"</div>`:''}</div>`).join('')}</div>`;
+}
+
+async function shareTripWithFriend(friendId, friendName) {
+  if (!_supabaseClient||!_supabaseUser?.id) return;
+  const trip=trips[currentTripId]; const data=tripData[currentTripId];
+  const {error}=await _supabaseClient.from('voyager_shared_trips').insert({from_user_id:_supabaseUser.id,to_user_id:friendId,trip_name:trip.name||'Shared Trip',trip_data:{trip,data},message:`Shared by @${_voyagerProfile?.username||'someone'}`});
+  if (error) { showToast('Could not share: '+error.message); return; }
+  localStorage.setItem('voy_tripShared','1');
+  renderDiscordBadges();
+  showToast(`✓ "${trip.name}" shared with ${friendName}!`);
+}
+
+function subscribeToNotifications() {
+  if (!_supabaseClient||!_supabaseUser?.id) return;
+  _supabaseClient.channel('voy-notifs-'+_supabaseUser.id)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'voyager_shared_trips',filter:`to_user_id=eq.${_supabaseUser.id}`},p=>showToast(`📦 New trip shared with you! Open Friends to import.`))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'voyager_friends',filter:`friend_id=eq.${_supabaseUser.id}`},()=>showToast('👥 New friend request!'))
+    .subscribe();
+}
+
+function initSupabaseFromStorage() {} // replaced by initAuth()
+
+// updateOnlineStatus is handled inside renderProfileUI
+function updateOnlineStatus(online) {
+  const el = document.getElementById('profileOnlineStatus');
+  if (!el) return;
+  if (online && _voyagerProfile) {
+    el.innerHTML = `<div style="width:7px;height:7px;border-radius:50%;background:#3ba55d"></div> <span style="color:#3ba55d;font-weight:600">Online · @${_voyagerProfile.username}</span> · <a href="#" onclick="signOut();return false" style="color:var(--text3);font-size:10px">Sign out</a>`;
+  } else {
+    el.innerHTML = `<div style="width:7px;height:7px;border-radius:50%;background:#747f8d"></div> <span>Not signed in</span>`;
+  }
+}
+
+// Friends functions are fmSearch, fmSendRequest, fmRespondRequest, fmLoadFriends, fmLoadReceived above
+
+async function shareTripWithFriend(friendId, friendName) {
+  if (!_supabaseClient || !_supabaseUser?.id) return;
+  const trip = trips[currentTripId];
+  const data = tripData[currentTripId];
+  const { error } = await _supabaseClient.from('voyager_shared_trips').insert({
+    from_user_id: _supabaseUser.id,
+    to_user_id: friendId,
+    trip_name: trip.name || 'Shared Trip',
+    trip_data: { trip, data },
+    message: `Shared from @${_supabaseUser.username}`,
+  });
+  if (error) { showToast('Could not share: ' + error.message); return; }
+  localStorage.setItem('voy_tripShared', '1');
+  renderDiscordBadges();
+  showToast(`✓ "${trip.name}" shared with ${friendName}!`);
+}
+
+function importSharedTrip(sharedTrip) {
+  try {
+    const { trip, data } = sharedTrip.trip_data;
+    const newId = 'shared_' + Date.now();
+    trips[newId] = { ...trip, name: '📥 ' + sharedTrip.trip_name };
+    tripData[newId] = data || { days:[], hotel:null, expenses:[], packItems:[] };
+    save();
+    const sel = document.getElementById('tripSelect');
+    if (sel) { const opt=document.createElement('option'); opt.value=newId; opt.textContent=trips[newId].name; sel.appendChild(opt); }
+    switchTrip(newId);
+    showToast(`✓ Trip "${sharedTrip.trip_name}" imported!`);
+  } catch(e) { showToast('Could not import trip.'); }
+}
+
 loadFromStorage();
+// Auth init (async — auth screen stays visible until session confirmed)
+initAuth();
+// Sync topbar avatar emoji on startup
+(function() {
+  try {
+    const p = JSON.parse(localStorage.getItem('voy_profile') || '{}');
+    const el = document.getElementById('topbarAvatarEmoji');
+    if (el && p.avatarEmoji) el.textContent = p.avatarEmoji;
+  } catch(e) {}
+})();
 updateOverview();
 renderHotelCard();
 // Defer non-visible panel renders until after first paint
@@ -4705,6 +5484,163 @@ setTimeout(refreshHeroLiveData, 1500);
 </script>
 
 <!-- ═══ PLACE DETAIL MODAL ═══ -->
+<!-- ═══ PROFILE EDIT MODAL ═══ -->
+<div id="profileEditModal" class="modal-overlay" onclick="if(event.target===this)closeModal('profileEditModal')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><span class="modal-title">Edit Profile</span><button class="modal-close" onclick="closeModal('profileEditModal')">✕</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="modal-label">Display Name</label><input type="text" id="peDisplayName" class="modal-input" placeholder="Your name" maxlength="40"></div>
+      <div><label class="modal-label">Handle</label><input type="text" id="peHandle" class="modal-input" placeholder="@yourhandle" maxlength="30"></div>
+      <div><label class="modal-label">Bio</label><textarea id="peBio" class="modal-input" style="resize:vertical;min-height:70px" placeholder="Tell the world about your travel style..." maxlength="150"></textarea></div>
+      <div>
+        <label class="modal-label">Avatar Emoji</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="avatarEmojiPicker">
+          ${['✈️','🌍','🗺️','🏔️','🏖️','🗽','🏯','🚀','🧭','🎒','🛸','🌊'].map(e=>`<button onclick="selectAvatarEmoji('${e}')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">${e}</button>`).join('')}
+        </div>
+      </div>
+      <div>
+        <label class="modal-label">Cover Style</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          ${[['linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)','🌌 Midnight'],['linear-gradient(135deg,#0f2027,#203a43,#2c5364)','🌊 Ocean'],['linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a)','🌅 Sunset'],['linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a)','🌿 Forest'],['linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a)','🌙 Aurora']].map(([g,l])=>`<button onclick="selectCoverGradient('${g}')" style="background:${g};border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">${l}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-save" onclick="saveProfile()">Save Profile</button></div>
+  </div>
+</div>
+
+<!-- ═══ SUPABASE SETUP MODAL ═══ -->
+<div id="supabaseSetupModal" class="modal-overlay" onclick="if(event.target===this)closeModal('supabaseSetupModal')">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header"><span class="modal-title">🌐 Connect Online</span><button class="modal-close" onclick="closeModal('supabaseSetupModal')">✕</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div style="padding:12px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.6">
+        Voyager uses <strong style="color:var(--accent)">Supabase</strong> (free) for friends and trip sharing. You need to create a free project at <a href="https://supabase.com" style="color:var(--accent)">supabase.com</a> and run the setup SQL once. See instructions below.
+      </div>
+      <div><label class="modal-label">Supabase Project URL</label><input type="text" id="sbUrl" class="modal-input" placeholder="https://xxxx.supabase.co"></div>
+      <div><label class="modal-label">Supabase Anon Key</label><input type="text" id="sbKey" class="modal-input" placeholder="eyJ..."></div>
+      <div><label class="modal-label">Your Username (public)</label><input type="text" id="sbUsername" class="modal-input" placeholder="wanderlust_jane" maxlength="30"></div>
+      <details style="font-size:11px;color:var(--text3)">
+        <summary style="cursor:pointer;color:var(--accent);font-weight:600;margin-bottom:6px">📋 Setup SQL — run once in Supabase SQL Editor</summary>
+        <pre style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px;overflow-x:auto;font-size:10px;line-height:1.5;color:var(--text2)">create table if not exists voyager_users (
+  id uuid default gen_random_uuid() primary key,
+  username text unique not null,
+  display_name text, avatar_emoji text default '✈️',
+  bio text, created_at timestamptz default now()
+);
+create table if not exists voyager_friends (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references voyager_users(id) on delete cascade,
+  friend_id uuid references voyager_users(id) on delete cascade,
+  status text default 'pending',
+  created_at timestamptz default now(),
+  unique(user_id, friend_id)
+);
+create table if not exists voyager_shared_trips (
+  id uuid default gen_random_uuid() primary key,
+  from_user_id uuid references voyager_users(id) on delete cascade,
+  to_user_id uuid references voyager_users(id) on delete cascade,
+  trip_name text, trip_data jsonb, message text,
+  created_at timestamptz default now()
+);
+alter table voyager_users enable row level security;
+alter table voyager_friends enable row level security;
+alter table voyager_shared_trips enable row level security;
+create policy "public read users" on voyager_users for select using (true);
+create policy "public insert users" on voyager_users for insert with check (true);
+create policy "public read friends" on voyager_friends for select using (true);
+create policy "manage own friends" on voyager_friends for all using (true);
+create policy "public read shared trips" on voyager_shared_trips for select using (true);
+create policy "insert shared trips" on voyager_shared_trips for insert with check (true);</pre>
+      </details>
+    </div>
+    <div class="modal-footer" style="gap:8px">
+      <button class="btn-sm" onclick="closeModal('supabaseSetupModal')">Cancel</button>
+      <button class="btn-save" onclick="connectSupabase()">🔌 Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PHOTO LIGHTBOX ═══ -->
+<div id="photoLightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9100;align-items:center;justify-content:center" onclick="if(event.target===this)closeLightbox()">
+  <button onclick="closeLightbox()" style="position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer">✕</button>
+  <button onclick="lightboxNav(-1)" style="position:absolute;left:16px;background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:22px;cursor:pointer;padding:10px 14px;border-radius:8px">‹</button>
+  <button onclick="lightboxNav(1)"  style="position:absolute;right:16px;background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:22px;cursor:pointer;padding:10px 14px;border-radius:8px">›</button>
+  <div style="max-width:80vw;max-height:80vh;display:flex;flex-direction:column;align-items:center;gap:12px">
+    <img id="lightboxImg" style="max-width:80vw;max-height:72vh;object-fit:contain;border-radius:8px">
+    <div id="lightboxCaption" style="color:#fff;font-size:13px;opacity:0.85"></div>
+  </div>
+</div>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div id="authScreen" style="position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;align-items:center;justify-content:center">
+  <div style="width:min(420px,94vw);padding:0 0 20px">
+    <!-- Branding -->
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-size:48px;margin-bottom:8px">✦</div>
+      <h1 style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--text);margin:0">Voyager</h1>
+      <p style="color:var(--text3);font-size:13px;margin-top:4px">Your smart travel companion</p>
+    </div>
+    <!-- Tab switcher -->
+    <div style="display:flex;background:var(--surface2);border-radius:10px;padding:3px;margin-bottom:20px;border:1px solid var(--border2)">
+      <button id="authTabLogin"  onclick="switchAuthTab('login')"  style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">Log In</button>
+      <button id="authTabSignup" onclick="switchAuthTab('signup')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);transition:all 0.15s">Sign Up</button>
+    </div>
+    <!-- Login form -->
+    <div id="authLoginForm" style="display:flex;flex-direction:column;gap:10px">
+      <input type="email"    id="authLoginEmail"    class="modal-input" style="margin:0" placeholder="Email address">
+      <input type="password" id="authLoginPassword" class="modal-input" style="margin:0" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div id="authLoginError" style="font-size:11px;color:var(--coral);min-height:14px"></div>
+      <button onclick="doLogin()" style="width:100%;padding:11px;background:var(--accent);border:none;color:#fff;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Log In</button>
+      <div style="text-align:center;font-size:12px;color:var(--text3);margin-top:4px">
+        Don't have an account? <a href="#" onclick="switchAuthTab('signup');return false" style="color:var(--accent)">Sign up</a>
+      </div>
+    </div>
+    <!-- Signup form -->
+    <div id="authSignupForm" style="display:none;flex-direction:column;gap:10px">
+      <input type="text"     id="authSignupName"     class="modal-input" style="margin:0" placeholder="Display name (e.g. Alex Wanderer)" maxlength="40">
+      <div style="position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">@</span>
+        <input type="text" id="authSignupHandle" class="modal-input" style="margin:0;padding-left:26px" placeholder="username (letters, numbers, _)" maxlength="30" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+      </div>
+      <input type="email"    id="authSignupEmail"    class="modal-input" style="margin:0" placeholder="Email address">
+      <input type="password" id="authSignupPassword" class="modal-input" style="margin:0" placeholder="Password (min 8 characters)">
+      <input type="password" id="authSignupConfirm"  class="modal-input" style="margin:0" placeholder="Confirm password" onkeydown="if(event.key==='Enter')doSignup()">
+      <div id="authSignupError" style="font-size:11px;color:var(--coral);min-height:14px"></div>
+      <button onclick="doSignup()" style="width:100%;padding:11px;background:var(--accent);border:none;color:#fff;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Create Account</button>
+      <div style="text-align:center;font-size:12px;color:var(--text3);margin-top:4px">
+        Already have an account? <a href="#" onclick="switchAuthTab('login');return false" style="color:var(--accent)">Log in</a>
+      </div>
+    </div>
+    <!-- Config warning (if Supabase not set up) -->
+    <div id="authConfigWarning" style="display:none;margin-top:16px;padding:10px 12px;background:rgba(237,66,69,0.1);border:1px solid rgba(237,66,69,0.3);border-radius:8px;font-size:11px;color:var(--coral);line-height:1.5">
+      ⚠ Supabase is not configured. Set <code>SUPABASE_URL</code> and <code>SUPABASE_KEY</code> in the app source before shipping.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BADGES MODAL ═══ -->
+<div id="badgesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9200;align-items:center;justify-content:center;backdrop-filter:blur(3px)" onclick="if(event.target===this)closeBadgesModal()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:min(480px,94vw);max-height:82vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,0.6)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:15px;font-weight:700;color:var(--text)">🏅 Badges</div>
+      <button onclick="closeBadgesModal()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px">✕</button>
+    </div>
+    <div id="badgesModalContent" style="padding:16px 18px"></div>
+  </div>
+</div>
+
+<!-- ═══ FRIENDS MODAL ═══ -->
+<div id="friendsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9200;align-items:center;justify-content:center;backdrop-filter:blur(3px)" onclick="if(event.target===this)closeFriendsModal()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:min(500px,94vw);max-height:86vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,0.6)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:15px;font-weight:700;color:var(--text)">👥 Friends</div>
+      <button onclick="closeFriendsModal()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px">✕</button>
+    </div>
+    <div id="friendsModalContent" style="padding:16px 18px"></div>
+  </div>
+</div>
+
 <div id="placeDetail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(3px)"
   onclick="if(event.target===this)closePlaceDetail()">
   <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:min(540px,94vw);max-height:86vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column">
