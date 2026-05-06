@@ -5095,8 +5095,8 @@ function switchProfileTab(tab) {
 // Developer: fill in your Supabase project details below.
 // Get these from supabase.com → Project Settings → API
 // ═══════════════════════════════════════════════════════
-const SUPABASE_URL = localStorage.getItem('voy_sb_url') || '';
-const SUPABASE_KEY = localStorage.getItem('voy_sb_key') || '';
+const SUPABASE_URL = 'https://mqjoibfbortewxlydpfh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH';
 
 let _supabaseClient = null;
 let _supabaseUser   = null;   // Supabase auth user object
@@ -5104,13 +5104,17 @@ let _voyagerProfile = null;   // voyager_users row
 let _friendsData    = [];
 
 function buildSupabaseClient(url, key) {
-  if (!url || !key) return null;
-  // window.supabase is the UMD global; supabase.createClient is the entry point
+  if (!url || !key) { console.error('[Voyager] Missing URL or KEY'); return null; }
   const lib = window.supabase || window.Supabase;
-  if (!lib?.createClient) return null;
-  return lib.createClient(url, key, {
-    auth: { persistSession: true, storageKey: 'voy_auth_session' }
-  });
+  console.log('[Voyager] window.supabase:', typeof window.supabase, '| window.Supabase:', typeof window.Supabase, '| lib:', typeof lib);
+  if (!lib?.createClient) { console.error('[Voyager] Supabase library not found on window'); return null; }
+  try {
+    const client = lib.createClient(url, key, {
+      auth: { persistSession: true, storageKey: 'voy_auth_session' }
+    });
+    console.log('[Voyager] Supabase client created OK:', !!client);
+    return client;
+  } catch(e) { console.error('[Voyager] createClient error:', e); return null; }
 }
 
 // ——— AUTH SCREEN ———
@@ -5217,12 +5221,14 @@ async function onAuthSuccess(user) {
 
 // ——— SESSION RESTORE ON STARTUP ———
 async function initAuth() {
+  console.log('[Voyager] initAuth started');
   // Wait up to 5s for Supabase CDN to load
   let waited = 0;
   while (!(window.supabase || window.Supabase)?.createClient && waited < 5000) {
     await new Promise(r => setTimeout(r, 100));
     waited += 100;
   }
+  console.log('[Voyager] After wait:', waited + 'ms', '| supabase:', typeof window.supabase, '| URL:', SUPABASE_URL?.slice(0,30));
 
   const url = SUPABASE_URL;
   const key = SUPABASE_KEY;
