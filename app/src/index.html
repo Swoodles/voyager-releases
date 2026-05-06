@@ -755,7 +755,7 @@
             <div class="card">
               <div class="card-header" style="margin-bottom:10px">
                 <div class="card-title"><span class="icon">🚏</span> Nearby Transit Stops</div>
-                <button class="btn-sm" onclick="openModal('transitKeyModal')" id="transitKeyBtn" style="font-size:11px">🔑 API Key</button>
+                
               </div>
               <div id="transitStopsArea" style="font-size:12px;color:var(--text3)">Calculate a transit route to see nearby stops.</div>
             </div>
@@ -1082,7 +1082,7 @@
         </select>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn-sm" onclick="openModal('firecrawlKeyModal')" title="Set Firecrawl API key" style="white-space:nowrap">🔑 Keys</button>
+        
         <button class="btn-sm" onclick="clearResearch()" title="Clear results" style="white-space:nowrap">✕</button>
       </div>
     </div>
@@ -1383,22 +1383,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="apiKeyModal-overlay" onclick="closeModal('apiKeyModal')">
-  <div class="modal" onclick="event.stopPropagation()">
-    <span class="modal-close" onclick="closeModal('apiKeyModal')">✕</span>
-    <h3>✦ Voyager AI Settings</h3>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Voyager AI is powered by Claude. Enter your Anthropic API key to enable AI-powered travel assistance.</p>
-    <div class="form-group">
-      <label>Anthropic API Key</label>
-      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="font-family:monospace">
-    </div>
-    <p style="font-size:11px;color:var(--text3);margin-bottom:4px">Your key is stored only in memory and never sent anywhere except Anthropic's API. Get a key at <strong>console.anthropic.com</strong></p>
-    <div class="form-actions">
-      <button class="btn-cancel" onclick="closeModal('apiKeyModal')">Cancel</button>
-      <button class="btn-save" onclick="saveApiKey()">Save Key</button>
-    </div>
-  </div>
-</div>
+<!-- API key modal removed - managed by developer in backend constants -->
 
 <div class="modal-overlay" id="hotelModal-overlay" onclick="closeModal('hotelModal')">
   <div class="modal" onclick="event.stopPropagation()">
@@ -2494,34 +2479,53 @@ async function optimizeRoute() {
 
   let latlngs = null, totalDist = 0, totalDur = 0, legs = [];
 
-  // ——— Attempt 1: OpenRouteService (free public, CORS-friendly) ———
-  try {
-    const body = {
-      coordinates: routeStops.map(s => [s.lng, s.lat]),
-    };
-    const resp = await fetchWithTimeout(
-      `https://api.openrouteservice.org/v2/directions/${orsProfile}/geojson`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': '5b3ce3597851110001cf6248a2e09d2ab2e64ade985f6a37b4b77c93' },
-        body: JSON.stringify(body),
-      }, 12000
-    );
-    if (resp.ok) {
-      const json = await resp.json();
-      const feat = json.features?.[0];
-      if (feat?.geometry?.coordinates?.length) {
-        latlngs   = feat.geometry.coordinates.map(c => [c[1], c[0]]);
-        totalDist = feat.properties?.summary?.distance || 0;
-        totalDur  = feat.properties?.summary?.duration || 0;
-        legs      = (feat.properties?.segments || []).map((seg, i) => ({
-          distance: seg.distance, duration: seg.duration,
-        }));
+  // ——— Attempt 1: Google Directions API (primary when key configured) ———
+  if (GOOGLE_MAPS_KEY && !latlngs) {
+    try {
+      const travelMode = { walking:'WALKING', cycling:'BICYCLING', driving:'DRIVING' }[routeTransportMode] || 'WALKING';
+      const origin = `${routeStops[0].lat},${routeStops[0].lng}`;
+      const dest   = `${routeStops[routeStops.length-1].lat},${routeStops[routeStops.length-1].lng}`;
+      const midStops = routeStops.slice(1,-1).map(s=>`${s.lat},${s.lng}`).join('|');
+      const wpParam  = midStops ? `&waypoints=${encodeURIComponent(midStops)}` : '';
+      const resp = await fetchWithTimeout(
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${dest}${wpParam}&mode=${travelMode}&key=${GOOGLE_MAPS_KEY}`,
+        {}, 10000
+      );
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === 'OK' && json.routes?.length) {
+          const route = json.routes[0];
+          latlngs   = route.legs.flatMap(leg => leg.steps.flatMap(step => decodePolyline(step.polyline.points)));
+          totalDist = route.legs.reduce((a,l) => a + l.distance.value, 0);
+          totalDur  = route.legs.reduce((a,l) => a + l.duration.value, 0);
+          legs      = route.legs.map(l => ({ distance: l.distance.value, duration: l.duration.value }));
+        }
       }
-    }
-  } catch(e) {}
+    } catch(e) { console.warn('[Voyager] Google Directions failed:', e); }
+  }
 
-  // ——— Attempt 2: OSRM router.project-osrm.org ———
+  // ——— Attempt 2: OpenRouteService ———
+  if (!latlngs) {
+    try {
+      const body = { coordinates: routeStops.map(s => [s.lng, s.lat]) };
+      const resp = await fetchWithTimeout(
+        `https://api.openrouteservice.org/v2/directions/${orsProfile}/geojson`,
+        { method:'POST', headers:{'Content-Type':'application/json','Authorization':'5b3ce3597851110001cf6248a2e09d2ab2e64ade985f6a37b4b77c93'}, body: JSON.stringify(body) }, 12000
+      );
+      if (resp.ok) {
+        const json = await resp.json();
+        const feat = json.features?.[0];
+        if (feat?.geometry?.coordinates?.length) {
+          latlngs   = feat.geometry.coordinates.map(c => [c[1], c[0]]);
+          totalDist = feat.properties?.summary?.distance || 0;
+          totalDur  = feat.properties?.summary?.duration || 0;
+          legs      = (feat.properties?.segments || []).map(seg => ({ distance: seg.distance, duration: seg.duration }));
+        }
+      }
+    } catch(e) {}
+  }
+
+  // ——— Attempt 3: OSRM ———
   if (!latlngs) {
     try {
       const extras = (routeTransportMode !== 'driving') ? '&exclude=motorway' : '';
@@ -2540,30 +2544,21 @@ async function optimizeRoute() {
     } catch(e) {}
   }
 
-  // ——— Attempt 3: Valhalla ———
+  // ——— Attempt 4: Valhalla ———
   if (!latlngs) {
     try {
       const valCosting = { walking:'pedestrian', cycling:'bicycle', driving:'auto' }[routeTransportMode] || 'pedestrian';
-      const body = {
-        locations: routeStops.map(s => ({ lat: s.lat, lon: s.lng })),
-        costing: valCosting,
-        directions_options: { units: 'kilometers' },
-      };
+      const body = { locations: routeStops.map(s => ({ lat: s.lat, lon: s.lng })), costing: valCosting, directions_options: { units: 'kilometers' } };
       const resp = await fetchWithTimeout('https://valhalla1.openstreetmap.de/route', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
       }, 12000);
       if (resp.ok) {
         const json = await resp.json();
         if (json.trip?.legs?.length) {
-          // Valhalla returns encoded polyline per leg
-          latlngs = json.trip.legs.flatMap(leg => {
-            try { return decodePolyline(leg.shape || ''); } catch(e) { return []; }
-          });
-          totalDist = (json.trip.summary?.length || 0) * 1000;
-          totalDur  = json.trip.summary?.time || 0;
-          legs = json.trip.legs.map(l => ({ distance: l.summary.length * 1000, duration: l.summary.time }));
+          latlngs   = json.trip.legs.flatMap(leg => { try { return decodePolyline(leg.shape||''); } catch(e) { return []; } });
+          totalDist = (json.trip.summary?.length||0)*1000;
+          totalDur  = json.trip.summary?.time||0;
+          legs      = json.trip.legs.map(l => ({ distance: l.summary.length*1000, duration: l.summary.time }));
         }
       }
     } catch(e) {}
@@ -4679,65 +4674,38 @@ async function searchEvents() {
   const catLabel = {convention:'conventions and trade shows',festival:'festivals and fairs',sports:'sports events',music:'concerts and music events',food:'food and drink events',exhibition:'art and museum exhibitions',all:'events of all kinds'}[cat]||'events';
 
   try {
-    // Fetch raw search content via Jina
-    const q1 = encodeURIComponent(`upcoming ${catLabel} in ${loc} ${timeframe} 2025 2026`);
-    const q2 = encodeURIComponent(`${loc} events schedule ${timeframe}`);
+    if (statusTx) statusTx.textContent = `Finding events in ${loc}...`;
 
-    const [r1, r2] = await Promise.allSettled([
-      toolJinaReader(`https://www.bing.com/search?q=${q1}`),
-      toolJinaReader(`https://www.bing.com/search?q=${q2}`),
-    ]);
-
-    const rawText = [r1, r2]
-      .filter(r => r.status === 'fulfilled' && r.value?.content)
-      .map(r => r.value.content)
-      .join('\n\n')
-      .slice(0, 12000);
-
-    if (!rawText || rawText.length < 100) throw new Error('No content fetched');
-
-    // ——— Use Claude API to cleanly extract and deduplicate events ———
-    if (statusTx) statusTx.textContent = 'Parsing events with AI...';
-
-    const prompt = `You are an events extraction assistant. From the web search results below, extract real upcoming events in ${loc} for ${timeframe}.
-
-RULES:
-- Only include real, named events (concerts, festivals, conventions, sports games, exhibitions, shows, fairs, markets, etc.)
-- DO NOT include: search UI elements, Bing/browser chrome, privacy policies, image upload prompts, or anything that is clearly not an event
-- Deduplicate: if multiple results mention the same event, merge them into ONE entry
-- Include only events actually in or near ${loc}
-- Category filter: ${cat === 'all' ? 'include all event types' : `only include ${catLabel}`}
-
-Respond ONLY with a valid JSON array (no markdown, no explanation). Each object:
-{"name":"Event Name","date":"Month Day or date range","venue":"Venue name if known","desc":"1-2 sentence description","cat":"convention|festival|sports|music|food|exhibition|event"}
-
-If you find no valid events, return an empty array [].
-
-SEARCH RESULTS:
-${rawText.slice(0, 8000)}`;
+    // ——— Claude API with web_search tool — fastest and cleanest results ———
+    const prompt = `Search for upcoming real events in ${loc} for ${timeframe}. Focus on: ${catLabel}. Find actual named events (concerts, festivals, conventions, sports games, exhibitions, shows, markets, etc.) happening in or near ${loc}. Return ONLY a JSON array, no markdown, no explanation. Each object: {"name":"Event Name","date":"date or date range","venue":"venue name if known","desc":"1-2 sentence description","cat":"convention|festival|sports|music|food|exhibition|event"}. Maximum 12 events. If no events found return [].`;
 
     const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
+        max_tokens: 2000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [{ role: 'user', content: prompt }],
       }),
     });
 
-    if (!apiResp.ok) throw new Error('API error ' + apiResp.status);
+    if (!apiResp.ok) throw new Error('API ' + apiResp.status);
     const apiJson = await apiResp.json();
-    const raw = (apiJson.content?.[0]?.text || '').trim();
+
+    // Extract text from response (may include tool_use blocks)
+    const textBlock = (apiJson.content || []).find(b => b.type === 'text');
+    const raw = (textBlock?.text || '').trim();
 
     let events = [];
     try {
-      const cleaned = raw.replace(/^```json\s*/,'').replace(/\s*```$/,'').trim();
-      events = JSON.parse(cleaned);
+      const cleaned = raw.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      // Find JSON array in response
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) events = JSON.parse(match[0]);
       if (!Array.isArray(events)) events = [];
     } catch(e) { events = []; }
 
-    // Add emoji based on category
     const catEmoji = {convention:'🎪',festival:'🎉',sports:'🏆',music:'🎵',food:'🍽️',exhibition:'🖼️',event:'🎟️'};
     events = events.map(ev => ({ ...ev, emoji: catEmoji[ev.cat] || '🎟️' }));
 
@@ -4842,9 +4810,17 @@ function renderProfileUI() {
   if (el('topbarAvatarEmoji'))  el('topbarAvatarEmoji').textContent  = p.avatarEmoji;
   if (el('profileCover'))       el('profileCover').style.background = p.coverGradient;
 
-  const tripCount = Object.keys(trips).length;
-  const countries = new Set(Object.values(trips).map(t => (t.destination||'').split(',').pop().trim()).filter(Boolean));
-  const daysPlanned = Object.values(tripData).reduce((acc, td) => acc + (td.days?.length || 0), 0);
+  // Stats — only count user's own trips (keyed to their account, not local demo data)
+  const userTripIds = _voyagerProfile ? Object.keys(trips).filter(id => {
+    const t = trips[id]; return t && !t._isDemo;
+  }) : [];
+  const tripCount   = _supabaseUser ? userTripIds.length : Object.keys(trips).length;
+  const countries   = _supabaseUser
+    ? new Set(userTripIds.map(id => (trips[id]?.destination||'').split(',').pop().trim()).filter(Boolean))
+    : new Set(Object.values(trips).map(t => (t.destination||'').split(',').pop().trim()).filter(Boolean));
+  const daysPlanned = _supabaseUser
+    ? userTripIds.reduce((a, id) => a + (tripData[id]?.days?.length||0), 0)
+    : Object.values(tripData).reduce((acc, td) => acc + (td.days?.length || 0), 0);
   const photos = getPhotos();
 
   if (el('statTrips'))     el('statTrips').textContent = tripCount;
@@ -5097,6 +5073,9 @@ function switchProfileTab(tab) {
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://mqjoibfbortewxlydpfh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH';
+// Developer: add your Google Maps API key below
+// Get one at console.cloud.google.com → Maps JavaScript API + Directions API + Places API
+const GOOGLE_MAPS_KEY = '';
 
 let _supabaseClient = null;
 let _supabaseUser   = null;   // Supabase auth user object
@@ -5509,13 +5488,28 @@ setTimeout(refreshHeroLiveData, 1500);
       <div>
         <label class="modal-label">Avatar Emoji</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="avatarEmojiPicker">
-          ${['✈️','🌍','🗺️','🏔️','🏖️','🗽','🏯','🚀','🧭','🎒','🛸','🌊'].map(e=>`<button onclick="selectAvatarEmoji('${e}')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">${e}</button>`).join('')}
+          <button onclick="selectAvatarEmoji('✈️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">✈️</button>
+          <button onclick="selectAvatarEmoji('🌍')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🌍</button>
+          <button onclick="selectAvatarEmoji('🗺️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🗺️</button>
+          <button onclick="selectAvatarEmoji('🏔️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏔️</button>
+          <button onclick="selectAvatarEmoji('🏖️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏖️</button>
+          <button onclick="selectAvatarEmoji('🗽')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🗽</button>
+          <button onclick="selectAvatarEmoji('🏯')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏯</button>
+          <button onclick="selectAvatarEmoji('🚀')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🚀</button>
+          <button onclick="selectAvatarEmoji('🧭')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🧭</button>
+          <button onclick="selectAvatarEmoji('🎒')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🎒</button>
+          <button onclick="selectAvatarEmoji('🛸')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🛸</button>
+          <button onclick="selectAvatarEmoji('🌊')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🌊</button>
         </div>
       </div>
       <div>
         <label class="modal-label">Cover Style</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-          ${[['linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)','🌌 Midnight'],['linear-gradient(135deg,#0f2027,#203a43,#2c5364)','🌊 Ocean'],['linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a)','🌅 Sunset'],['linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a)','🌿 Forest'],['linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a)','🌙 Aurora']].map(([g,l])=>`<button onclick="selectCoverGradient('${g}')" style="background:${g};border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">${l}</button>`).join('')}
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)')" style="background:linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌌 Midnight</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#0f2027,#203a43,#2c5364)')" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌊 Ocean</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a)')" style="background:linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌅 Sunset</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a)')" style="background:linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌿 Forest</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a)')" style="background:linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌙 Aurora</button>
         </div>
       </div>
     </div>
