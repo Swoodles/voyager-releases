@@ -9,8 +9,16 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=DM+Sans:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=DM+Sans:wght@400;500&display=swap"></noscript>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Google Maps loader - loaded dynamically once GOOGLE_MAPS_KEY is available
+window._gmLoaded = false;
+window._gmCallbacks = [];
+window.initGoogleMaps = function() {
+  window._gmLoaded = true;
+  window._gmCallbacks.forEach(fn => fn());
+  window._gmCallbacks = [];
+};
+</script>
 <style>
   :root {
     --bg: #0e1117;
@@ -182,16 +190,10 @@
     width: 100%; height: 420px; border-radius: var(--radius);
     border: 1px solid var(--border); overflow: hidden; background: var(--surface2);
   }
-  #leaflet-map { width: 100%; height: 100%; }
-  .leaflet-container { background: #1e2535; }
+  #google-map { width: 100%; height: 100%; }
   .map-placeholder { text-align: center; }
   .map-placeholder .map-icon { font-size: 48px; margin-bottom: 8px; }
   .map-placeholder p { color: var(--text2); font-size: 13px; }
-  .map-placeholder a {
-    display: inline-block; margin-top: 12px; padding: 8px 20px;
-    background: var(--accent); color: #fff; border-radius: var(--radius-sm);
-    text-decoration: none; font-size: 13px; font-weight: 500;
-  }
 
   .location-list { display: flex; flex-direction: column; gap: 8px; }
   .location-item {
@@ -694,7 +696,7 @@
       <div style="display:grid;grid-template-columns:1fr 320px;gap:20px">
         <div>
           <div id="map-frame">
-            <div id="leaflet-map"></div>
+            <div id="google-map"></div>
           </div>
           <div style="margin-top:16px">
             <div class="card-header" style="margin-bottom:10px">
@@ -1481,7 +1483,7 @@
 let voyagerApiKey = '';
 
 // ——— MAP STATE ———
-let leafletMap = null, mapMarkers = [], mapRouteLayer = null;
+// Map state declared in Google Maps engine below
 
 // ——— DEFAULT DATA ———
 const DEFAULT_PARIS = {
@@ -1625,8 +1627,8 @@ function showPanel(name, el) {
   document.getElementById('aiResponse').classList.remove('visible');
   if (name === 'map') {
     setTimeout(() => {
-      if (!leafletMap) initMap();
-      else leafletMap.invalidateSize();
+      if (!gMap) initMap();
+      else if(gMap) google.maps && gMap.setCenter(gMap.getCenter());
     }, 30);
     // Show hotel quick-add button if hotel is set
     const qa = document.getElementById('hotelQuickAdd');
@@ -1645,10 +1647,17 @@ function showPanel(name, el) {
 // ——— MODAL ———
 function openModal(id) {
   if (id === 'eventModal') populateEventDays();
-  document.getElementById(id + '-overlay').classList.add('open');
+  // Try the -overlay pattern first (old modals), then direct id (new modals)
+  const overlayEl = document.getElementById(id + '-overlay');
+  if (overlayEl) { overlayEl.classList.add('open'); return; }
+  const directEl = document.getElementById(id);
+  if (directEl) { directEl.style.display = 'flex'; }
 }
 function closeModal(id) {
-  document.getElementById(id + '-overlay').classList.remove('open');
+  const overlayEl = document.getElementById(id + '-overlay');
+  if (overlayEl) { overlayEl.classList.remove('open'); if (id === 'tripModal') closeDestDropdown(); return; }
+  const directEl = document.getElementById(id);
+  if (directEl) { directEl.style.display = 'none'; }
   if (id === 'tripModal') closeDestDropdown();
 }
 
@@ -1905,7 +1914,7 @@ async function addHotelToRoute() {
   const mapNavItem = document.querySelectorAll('.nav-item')[2];
   showPanel('map', mapNavItem);
   mapNavItem.classList.add('active');
-  if (!leafletMap) initMap();
+  if (!gMap) initMap();
 
   // Use geocoded coords if available, else geocode now
   let lat = h.lat, lng = h.lng;
@@ -1932,7 +1941,7 @@ async function addHotelToRoute() {
   if (!existing) {
     routeStops.unshift(hotelStop);
     renderRouteStops();
-    setTimeout(() => { leafletMap.setView([lat, lng], 15); addMapMarker(lat, lng, '🏨 ' + h.name, '#e8b84b'); }, 150);
+    setTimeout(() => { if(gMap) gMap.setCenter({lat,lng}); addMapMarker(lat, lng, '🏨 ' + h.name, '#e8b84b'); }, 150);
     showToast('🏨 Hotel added as starting point!');
   } else {
     showToast('Hotel is already in the route.');
@@ -1960,7 +1969,7 @@ function switchTrip(val) {
   renderRouteStops();
   clearAllRoute();
   stopLiveTracker();
-  if (leafletMap && t) leafletMap.setView([t.lat, t.lng], 13);
+  if (gMap && t) gMap.setCenter({lat:t.lat,lng:t.lng});
   save();
   showToast('Switched to ' + t.name);
   // Refresh hero live data for the new trip
@@ -2032,7 +2041,7 @@ async function geocodeDest(dest, tripId) {
     if (data.length > 0 && trips[tripId]) {
       trips[tripId].lat = parseFloat(data[0].lat);
       trips[tripId].lng = parseFloat(data[0].lon);
-      if (currentTripId === tripId && leafletMap) leafletMap.setView([trips[tripId].lat, trips[tripId].lng], 13);
+      if (currentTripId === tripId && gMap) if(gMap) gMap.setCenter({lat:trips[tripId].lat,lng:trips[tripId].lng});
       save();
     }
   } catch(e) {}
@@ -2203,15 +2212,14 @@ async function sendDayToRoute(di) {
   showPanel('map', mapNavItem);
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   mapNavItem.classList.add('active');
-  if (!leafletMap) initMap();
+  if (!gMap) initMap();
 
   routeStops = stops;
   renderRouteStops();
   showToast(`✓ ${stops.length} stops loaded for Day ${day.dayNum} — hit Calculate Route!`);
   setTimeout(() => {
-    if (leafletMap && stops.length) {
-      const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
-      leafletMap.fitBounds(bounds, { padding: [40, 40] });
+    if (gMap && stops.length) {
+      fitMapToBounds(stops.map(s => [s.lat, s.lng]));
       stops.forEach((s, i) => addMapMarker(s.lat, s.lng, `${i+1}. ${s.name}`));
     }
   }, 200);
@@ -2223,7 +2231,7 @@ let routeTransportMode = 'walking';
 let stopInputTimer = null;
 let transitlandKey = '';
 let liveTrackerInterval = null;
-let transitStopMarkers = [];
+// transitStopMarkers declared in Google Maps engine
 
 const MODE_NOTES = {
   walking: '🚶 Walking route — follows footpaths and pedestrian streets. Avoids all motorways and highways.',
@@ -2249,14 +2257,7 @@ function initMap() {
 
   const trip = trips[currentTripId];
   const center = trip ? [trip.lat, trip.lng] : [48.8566, 2.3522];
-  leafletMap = L.map('leaflet-map', { zoomControl: true }).setView(center, 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd', maxZoom: 19,
-  }).addTo(leafletMap);
-  leafletMap.on('click', hideSuggestions);
-  // Always invalidate after a short delay to catch any CSS transition
-  setTimeout(() => leafletMap.invalidateSize(), 120);
+  // Google Maps init is handled by loadGoogleMapsScript + initGoogleMaps callback
 }
 
 function setTransportMode(mode) {
@@ -2349,7 +2350,7 @@ async function addStopFromSearch() {
     if (data.length > 0) {
       routeStops.push({ name: q, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
       renderRouteStops();
-      if (leafletMap) leafletMap.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 15);
+      if (gMap) if(gMap) gMap.setCenter({lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)});
       showToast('📍 Added: ' + q);
     } else {
       showToast('Location not found. Try a more specific name or address.');
@@ -2382,43 +2383,127 @@ function removeRouteStop(i) {
   clearAllRoute();
 }
 
-// ——— MAP MARKERS — Google-style pin markers ———
-function makePinIcon(label, color, shape) {
-  // shape: 'pill' for stop labels, 'pin' for route stops
-  const bg = color || '#4f8ef7';
-  if (shape === 'stop') {
-    return L.divIcon({
-      className: '',
-      html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
-        <div style="background:${bg};color:#fff;padding:4px 9px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,0.55);border:2px solid rgba(255,255,255,0.35)">${label}</div>
-        <div style="width:2px;height:7px;background:${bg}"></div>
-        <div style="width:5px;height:5px;border-radius:50%;background:${bg};border:1.5px solid #fff"></div>
-      </div>`,
-      iconAnchor: [0, 0],
-    });
+// ═══════════════════════════════════════════════════════
+// ——— GOOGLE MAPS ENGINE ———
+// ═══════════════════════════════════════════════════════
+let gMap = null;          // google.maps.Map instance
+let mapMarkers = [];      // google.maps.Marker[]
+let mapRouteLayer = null; // google.maps.Polyline | google.maps.Polyline[]
+let transitStopMarkers = [];
+
+function loadGoogleMapsScript() {
+  if (window._gmLoaded || document.getElementById('gm-script')) return;
+  if (!GOOGLE_MAPS_KEY) {
+    // No key — show placeholder
+    const c = document.getElementById('google-map');
+    if (c) c.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text3);font-size:13px;gap:8px"><div style="font-size:32px">🗺️</div><div>Add a Google Maps API key to enable the map.</div></div>`;
+    return;
   }
-  // numbered route pin
-  return L.divIcon({
-    className: '',
-    html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
-      <div style="background:${bg};color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.55);border:2px solid #fff;letter-spacing:0.2px">${label}</div>
-      <div style="width:2px;height:9px;background:${bg}"></div>
-      <div style="width:8px;height:8px;border-radius:50%;background:${bg};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>
-    </div>`,
-    iconAnchor: [0, 0],
-  });
+  const s = document.createElement('script');
+  s.id = 'gm-script';
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&callback=initGoogleMaps&libraries=places`;
+  s.async = true; s.defer = true;
+  document.head.appendChild(s);
 }
 
+function initMap() {
+  const container = document.getElementById('google-map');
+  if (!container) return;
+
+  if (!GOOGLE_MAPS_KEY) { loadGoogleMapsScript(); return; }
+
+  const doInit = () => {
+    if (container.offsetHeight === 0) { setTimeout(doInit, 60); return; }
+    const trip = trips[currentTripId];
+    const center = trip ? { lat: trip.lat, lng: trip.lng } : { lat: 48.8566, lng: 2.3522 };
+    gMap = new google.maps.Map(container, {
+      center, zoom: 13,
+      mapTypeId: 'roadmap',
+      styles: GOOGLE_MAP_DARK_STYLE,
+      disableDefaultUI: false,
+      zoomControl: true,
+      streetViewControl: false,
+      mapTypeControl: false,
+      fullscreenControl: false,
+    });
+    gMap.addListener('click', hideSuggestions);
+  };
+
+  if (window._gmLoaded) { doInit(); }
+  else { window._gmCallbacks.push(doInit); loadGoogleMapsScript(); }
+}
+
+// Dark style for Google Maps matching Voyager's theme
+const GOOGLE_MAP_DARK_STYLE = [
+  {elementType:'geometry',stylers:[{color:'#1a2235'}]},
+  {elementType:'labels.text.stroke',stylers:[{color:'#1a2235'}]},
+  {elementType:'labels.text.fill',stylers:[{color:'#8a9bb5'}]},
+  {featureType:'road',elementType:'geometry',stylers:[{color:'#283456'}]},
+  {featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#1a2235'}]},
+  {featureType:'road.highway',elementType:'geometry',stylers:[{color:'#3a4f7a'}]},
+  {featureType:'road.highway',elementType:'geometry.stroke',stylers:[{color:'#1f3b6e'}]},
+  {featureType:'water',elementType:'geometry',stylers:[{color:'#0d1f3c'}]},
+  {featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#4a6fa5'}]},
+  {featureType:'poi',stylers:[{visibility:'off'}]},
+  {featureType:'transit',stylers:[{visibility:'off'}]},
+  {featureType:'administrative',elementType:'geometry',stylers:[{color:'#2a3a5c'}]},
+  {featureType:'administrative.country',elementType:'labels.text.fill',stylers:[{color:'#9da5b3'}]},
+  {featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#bccde0'}]},
+  {featureType:'landscape',elementType:'geometry',stylers:[{color:'#1e2d45'}]},
+];
+
 function addMapMarker(lat, lng, label, color) {
-  if (!leafletMap) return null;
+  if (!gMap || !window._gmLoaded) return null;
   const bg = color || MODE_COLOR[routeTransportMode] || '#4f8ef7';
-  const m = L.marker([lat, lng], { icon: makePinIcon(label, bg, 'pin') }).addTo(leafletMap);
+  const m = new google.maps.Marker({
+    position: { lat: parseFloat(lat), lng: parseFloat(lng) },
+    map: gMap,
+    title: label,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 10,
+      fillColor: bg,
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2,
+    },
+    label: {
+      text: String(label).slice(0, 1),
+      color: '#fff',
+      fontSize: '11px',
+      fontWeight: '700',
+    },
+  });
+  // Info window on click
+  const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:600;padding:2px 4px">${label}</div>` });
+  m.addListener('click', () => iw.open(gMap, m));
   mapMarkers.push(m);
   return m;
 }
 
+function addTransitStopMarker(lat, lng, label, color) {
+  if (!gMap || !window._gmLoaded) return null;
+  const m = new google.maps.Marker({
+    position: { lat, lng },
+    map: gMap,
+    title: label,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 7,
+      fillColor: color || '#7c5cbf',
+      fillOpacity: 1,
+      strokeColor: '#fff',
+      strokeWeight: 2,
+    },
+  });
+  const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:11px;padding:2px">${label}</div>` });
+  m.addListener('click', () => iw.open(gMap, m));
+  transitStopMarkers.push(m);
+  return m;
+}
+
 function clearMapMarkers() {
-  mapMarkers.forEach(m => { try { leafletMap.removeLayer(m); } catch(e){} });
+  mapMarkers.forEach(m => m.setMap(null));
   mapMarkers = [];
   clearRouteLines();
   clearTransitStopMarkers();
@@ -2426,15 +2511,36 @@ function clearMapMarkers() {
 
 function clearRouteLines() {
   if (mapRouteLayer) {
-    if (Array.isArray(mapRouteLayer)) mapRouteLayer.forEach(l => { try { leafletMap.removeLayer(l); } catch(e){} });
-    else { try { leafletMap.removeLayer(mapRouteLayer); } catch(e){} }
+    if (Array.isArray(mapRouteLayer)) mapRouteLayer.forEach(l => l.setMap(null));
+    else mapRouteLayer.setMap(null);
     mapRouteLayer = null;
   }
 }
 
 function clearTransitStopMarkers() {
-  transitStopMarkers.forEach(m => { try { leafletMap.removeLayer(m); } catch(e){} });
+  transitStopMarkers.forEach(m => m.setMap(null));
   transitStopMarkers = [];
+}
+
+function fitMapToBounds(latlngs) {
+  if (!gMap || !window._gmLoaded || !latlngs?.length) return;
+  const bounds = new google.maps.LatLngBounds();
+  latlngs.forEach(c => bounds.extend({ lat: c[0], lng: c[1] }));
+  gMap.fitBounds(bounds, 40);
+}
+
+function drawRoutePolyline(latlngs, color, weight, dashed) {
+  if (!gMap || !window._gmLoaded) return null;
+  const line = new google.maps.Polyline({
+    path: latlngs.map(c => ({ lat: c[0], lng: c[1] })),
+    geodesic: true,
+    strokeColor: color || '#4f8ef7',
+    strokeOpacity: dashed ? 0 : 0.9,
+    strokeWeight: weight || 5,
+    icons: dashed ? [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '12px' }] : [],
+    map: gMap,
+  });
+  return line;
 }
 
 function clearAllRoute() {
@@ -2460,7 +2566,7 @@ function formatDistance(m) {
 
 async function optimizeRoute() {
   try {
-  if (!leafletMap) initMap();
+  if (!gMap) initMap();
   if (routeStops.length < 2) { showToast('Add at least 2 stops first.'); return; }
 
   clearMapMarkers();
@@ -2572,11 +2678,8 @@ async function optimizeRoute() {
     return;
   }
 
-  mapRouteLayer = L.polyline(latlngs, {
-    color: MODE_COLOR[routeTransportMode] || '#4f8ef7',
-    weight: 5, opacity: 0.9,
-  }).addTo(leafletMap);
-  leafletMap.fitBounds(mapRouteLayer.getBounds(), { padding: [30, 30] });
+  mapRouteLayer = drawRoutePolyline(latlngs, MODE_COLOR[routeTransportMode] || '#4f8ef7', 5, false);
+  fitMapToBounds(latlngs);
 
   document.getElementById('routeDistance').textContent = formatDistance(totalDist);
   document.getElementById('routeDuration').textContent  = formatDuration(totalDur);
@@ -2665,12 +2768,7 @@ async function optimizeTransitRoute() {
 
       const isWalk = leg.mode === 'WALK';
       const legColor = legColors[leg.mode] || '#7c5cbf';
-      const line = L.polyline(latlngs, {
-        color: isWalk ? '#5bbbf5' : legColor,
-        weight: isWalk ? 3 : 5,
-        dashArray: isWalk ? '7,6' : null,
-        opacity: 0.92,
-      }).addTo(leafletMap);
+      const line = drawRoutePolyline(latlngs, isWalk?'#5bbbf5':legColor, isWalk?3:5, isWalk);
 
       const routeLabel = leg.route ? `${leg.mode === 'SUBWAY' ? '🚇' : leg.mode === 'RAIL' ? '🚆' : leg.mode === 'TRAM' ? '🚃' : '🚌'} ${leg.route}` : '🚶 Walk';
       line.bindTooltip(routeLabel, { sticky: true });
@@ -2678,9 +2776,7 @@ async function optimizeTransitRoute() {
 
       // Board/alight markers for transit legs
       if (!isWalk && leg.from?.name && leg.from.lat && leg.from.lon) {
-        const sm = L.marker([leg.from.lat, leg.from.lon], {
-          icon: makePinIcon(`🚏 ${leg.from.name}`, legColor, 'stop')
-        }).addTo(leafletMap);
+        const sm = addTransitStopMarker(leg.from.lat, leg.from.lon, `🚏 ${leg.from.name}`, legColor);
         transitStopMarkers.push(sm);
       }
 
@@ -2698,7 +2794,7 @@ async function optimizeTransitRoute() {
     }
 
     mapRouteLayer = layers;
-    if (allCoords.length) leafletMap.fitBounds(L.latLngBounds(allCoords), { padding: [30, 30] });
+    if (allCoords.length) fitMapToBounds(allCoords);
 
     // Summary
     const totalDur = Math.round((itinerary.endTime - itinerary.startTime) / 1000);
@@ -2761,21 +2857,17 @@ async function optimizeTransitRoute() {
 
   clearRouteLines();
   const layers = [];
-  const w1 = L.polyline(walkLeg1.geometry.coordinates.map(c=>[c[1],c[0]]), { color:'#5bbbf5', weight:3, dashArray:'7,5', opacity:0.9 }).addTo(leafletMap);
-  w1.bindTooltip(`🚶 Walk to ${stopA.tags?.name||'Stop'}`);
-  const tLine = L.polyline([[stopA.lat,stopA.lon],[stopB.lat,stopB.lon]], { color:'#7c5cbf', weight:5, opacity:0.9 }).addTo(leafletMap);
-  tLine.bindTooltip('🚌 Transit');
-  const w2 = L.polyline(walkLeg2.geometry.coordinates.map(c=>[c[1],c[0]]), { color:'#5bbbf5', weight:3, dashArray:'7,5', opacity:0.9 }).addTo(leafletMap);
-  w2.bindTooltip(`🚶 Walk to ${dest.name}`);
+  const w1 = drawRoutePolyline(walkLeg1.geometry.coordinates.map(c=>[c[1],c[0]]), '#5bbbf5', 3, true);
+  const tLine = drawRoutePolyline([[stopA.lat,stopA.lon],[stopB.lat,stopB.lon]], '#7c5cbf', 5, false);
+  const w2 = drawRoutePolyline(walkLeg2.geometry.coordinates.map(c=>[c[1],c[0]]), '#5bbbf5', 3, true);
   layers.push(w1, tLine, w2);
 
-  const sm1 = L.marker([stopA.lat,stopA.lon],{icon:makePinIcon(`🚏 ${stopA.tags?.name||'Board'}`, '#7c5cbf','stop')}).addTo(leafletMap);
-  const sm2 = L.marker([stopB.lat,stopB.lon],{icon:makePinIcon(`🚏 ${stopB.tags?.name||'Alight'}`, '#7c5cbf','stop')}).addTo(leafletMap);
-  transitStopMarkers.push(sm1, sm2);
+  addTransitStopMarker(stopA.lat, stopA.lon, `🚏 ${stopA.tags?.name||'Board'}`, '#7c5cbf');
+  addTransitStopMarker(stopB.lat, stopB.lon, `🚏 ${stopB.tags?.name||'Alight'}`, '#7c5cbf');
   mapRouteLayer = layers;
 
   const allPts = [...walkLeg1.geometry.coordinates.map(c=>[c[1],c[0]]), [stopA.lat,stopA.lon],[stopB.lat,stopB.lon], ...walkLeg2.geometry.coordinates.map(c=>[c[1],c[0]])];
-  leafletMap.fitBounds(L.latLngBounds(allPts), { padding:[30,30] });
+  fitMapToBounds(allPts);
 
   const tDist = Math.hypot(stopB.lat-stopA.lat, stopB.lon-stopA.lon)*111000;
   const totalDist = walkLeg1.distance + tDist + walkLeg2.distance;
@@ -2888,7 +2980,7 @@ out tags 40;`;
         html: `<div style="background:#7c5cbf;color:#fff;padding:3px 7px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${stopIcon} ${stopName}</div>`,
         iconAnchor: [0, 0],
       });
-      const m = L.marker([stop.lat, stop.lon], { icon }).addTo(leafletMap);
+      const m = addTransitStopMarker(stop.lat, stop.lon, stop.name||'Stop', '#7c5cbf');
       transitStopMarkers.push(m);
     });
 
@@ -3095,7 +3187,7 @@ async function showOnMap(name) {
   showPanel('map', document.querySelectorAll('.nav-item')[2]);
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.nav-item')[2].classList.add('active');
-  if (!leafletMap) initMap();
+  if (!gMap) initMap();
   setTimeout(async () => {
     const near = trips[currentTripId]?.destination || '';
     try {
@@ -3106,7 +3198,7 @@ async function showOnMap(name) {
       const data = await r.json();
       if (data.length > 0) {
         const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-        leafletMap.setView([lat, lng], 16);
+        if(gMap) gMap.setCenter({lat,lng});
         addMapMarker(lat, lng, name);
         showToast('📍 ' + name + ' shown on map');
       }
@@ -5073,9 +5165,8 @@ function switchProfileTab(tab) {
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://mqjoibfbortewxlydpfh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH';
-// Developer: add your Google Maps API key below
-// Get one at console.cloud.google.com → Maps JavaScript API + Directions API + Places API
-const GOOGLE_MAPS_KEY = '';
+// Developer: add your Google Maps API key below or set via the admin panel (Ctrl+Shift+Alt+V)
+const GOOGLE_MAPS_KEY = localStorage.getItem('voy_google_maps_key') || '';
 
 let _supabaseClient = null;
 let _supabaseUser   = null;   // Supabase auth user object
@@ -5116,10 +5207,17 @@ async function doLogin() {
   if (errEl) errEl.textContent = 'Signing in...';
   try {
     const { data, error } = await _supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) {
+      if (error.message.toLowerCase().includes('invalid') || error.message.toLowerCase().includes('credentials')) {
+        if (errEl) errEl.textContent = 'Incorrect email or password.';
+      } else {
+        if (errEl) errEl.textContent = error.message;
+      }
+      return;
+    }
     await onAuthSuccess(data.user);
   } catch(e) {
-    if (errEl) errEl.textContent = e.message || 'Login failed. Check your credentials.';
+    if (errEl) errEl.textContent = e.message || 'Login failed.';
   }
 }
 
@@ -5132,40 +5230,49 @@ async function doSignup() {
   const errEl    = document.getElementById('authSignupError');
 
   if (!name || !handle || !email || !password) { if (errEl) errEl.textContent = 'All fields are required.'; return; }
-  if (!/^[a-z0-9_]{2,30}$/.test(handle)) { if (errEl) errEl.textContent = 'Username must be 2-30 chars: letters, numbers, underscore only.'; return; }
+  if (!/^[a-z0-9_]{2,30}$/.test(handle)) { if (errEl) errEl.textContent = 'Username: 2-30 chars, letters/numbers/underscore only.'; return; }
   if (password.length < 8) { if (errEl) errEl.textContent = 'Password must be at least 8 characters.'; return; }
   if (password !== confirm) { if (errEl) errEl.textContent = 'Passwords do not match.'; return; }
-  if (!_supabaseClient) { if (errEl) errEl.textContent = 'Service unavailable — contact support.'; return; }
+  if (!_supabaseClient) { if (errEl) errEl.textContent = 'Service unavailable.'; return; }
 
   if (errEl) errEl.textContent = 'Checking username...';
 
   // Check username availability
   const { data: existing } = await _supabaseClient.from('voyager_users').select('id').eq('username', handle).maybeSingle();
-  if (existing) { if (errEl) errEl.textContent = `@${handle} is already taken. Choose another.`; return; }
+  if (existing) { if (errEl) errEl.textContent = `@${handle} is already taken.`; return; }
 
+  // Check if email already has an account by attempting login silently
   if (errEl) errEl.textContent = 'Creating account...';
   try {
     const { data, error } = await _supabaseClient.auth.signUp({ email, password });
-    if (error) throw error;
+    if (error) {
+      if (error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('registered')) {
+        if (errEl) errEl.textContent = 'An account with this email already exists. Please log in instead.';
+        setTimeout(() => switchAuthTab('login'), 1800);
+      } else {
+        if (errEl) errEl.textContent = error.message;
+      }
+      return;
+    }
+    // If user already exists, Supabase may return a user with identities=[]
+    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      if (errEl) errEl.textContent = 'An account with this email already exists. Please log in.';
+      setTimeout(() => switchAuthTab('login'), 1800);
+      return;
+    }
 
     // Create voyager_users profile row
     await _supabaseClient.from('voyager_users').insert({
-      id: data.user.id,
-      username: handle,
-      display_name: name,
-      avatar_emoji: '✈️',
-      bio: '',
+      id: data.user.id, username: handle,
+      display_name: name, avatar_emoji: '✈️', bio: '',
     });
 
-    // Pre-fill local profile
     _profileData.displayName = name;
     _profileData.handle = '@' + handle;
-    _profileData.avatarEmoji = '✈️';
     localStorage.setItem('voy_profile', JSON.stringify(_profileData));
-
     await onAuthSuccess(data.user);
   } catch(e) {
-    if (errEl) errEl.textContent = e.message || 'Sign up failed. Try a different email.';
+    if (errEl) errEl.textContent = e.message || 'Sign up failed.';
   }
 }
 
@@ -5449,6 +5556,9 @@ function importSharedTrip(sharedTrip) {
     showToast(`✓ Trip "${sharedTrip.trip_name}" imported!`);
   } catch(e) { showToast('Could not import trip.'); }
 }
+
+// ——— GOOGLE MAPS KEY (set in source or via voyager-admin.html) ———
+// GOOGLE_MAPS_KEY is declared at top of script
 
 loadFromStorage();
 // Auth init (async — auth screen stays visible until session confirmed)
