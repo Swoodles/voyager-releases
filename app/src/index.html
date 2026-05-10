@@ -493,7 +493,44 @@ window.initGoogleMaps = function() {
   .friend-avatar { width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0 }
   .friend-status { width:9px;height:9px;border-radius:50%;border:2px solid var(--surface2);position:absolute;bottom:0;right:0 }
   .online { background:#3ba55d } .away { background:#faa81a } .offline { background:#747f8d }
+  /* ——— UNIFIED INPUT STYLING ——— */
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="number"], input[type="date"], input[type="search"],
+  select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus,
+  input[type="number"]:focus, input[type="date"]:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.15);
+  }
+  input::placeholder { color: var(--text3); }
+  /* Auth screen inputs override */
+  #authLoginForm input, #authSignupForm input {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border2);
+    color: var(--text);
+  }
+  #authLoginForm input:focus, #authSignupForm input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.2);
+  }
   .agent-log-line { padding:3px 0;border-bottom:1px solid var(--border);color:var(--text3); }
+  .agent-log-line.success { color:var(--green); }
+  .agent-log-line.error   { color:var(--coral); }
+  .agent-log-line.info    { color:var(--accent); }
+  .score-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700; }
   .agent-log-line.success { color:var(--green); }
   .agent-log-line.error   { color:var(--coral); }
   .agent-log-line.info    { color:var(--accent); }
@@ -512,9 +549,7 @@ window.initGoogleMaps = function() {
   <div class="trip-selector">
     <label>Current Trip</label>
     <select id="tripSelect" onchange="switchTrip(this.value)">
-      <option value="paris">🇫🇷 Paris Getaway</option>
-      <option value="tokyo">🇯🇵 Tokyo Adventure</option>
-      <option value="nyc">🗽 NYC Weekend</option>
+      <!-- populated by rebuildTripSelect() -->
     </select>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px">
       <button class="btn-new-trip" onclick="openModal('tripModal')">+ New Trip</button>
@@ -855,12 +890,14 @@ window.initGoogleMaps = function() {
     <div id="panel-profile" class="panel">
       <!-- Cover photo -->
       <div class="profile-cover" id="profileCover">
-        <button class="profile-cover-edit" onclick="openModal('profileEditModal')">✎ Edit Cover</button>
+        <div id="profileCoverBg" style="position:absolute;inset:0;background-size:cover;background-position:center;border-radius:14px"></div>
+        <button class="profile-cover-edit" onclick="openModal('profileCoverModal')" style="position:relative;z-index:2">✎ Edit Cover</button>
       </div>
       <!-- Avatar + name row -->
       <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:12px;padding:0 4px">
         <div class="profile-avatar-wrap">
-          <div class="profile-avatar" id="profileAvatarEl" onclick="openModal('profileEditModal')">
+          <div class="profile-avatar" id="profileAvatarEl" onclick="triggerAvatarUpload()" title="Click to change photo" style="cursor:pointer;overflow:hidden">
+            <img id="profileAvatarImg" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%">
             <span id="profileAvatarEmoji">✈️</span>
           </div>
         </div>
@@ -1141,7 +1178,6 @@ window.initGoogleMaps = function() {
         ⚙ Params
       </button>
       <button class="ai-send" onclick="runResearchAgent()" id="researchRunBtn">Search</button>
-      <button class="btn-sm" onclick="openModal('apiKeyModal')" title="Configure AI keys" style="flex-shrink:0">⚙️</button>
       <div id="researchStatus" style="font-size:11px;color:var(--text3);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
   </div>
@@ -1542,16 +1578,10 @@ const DEFAULT_PARIS = {
 const EMPTY_DATA = () => ({ days:[], docs:[], packItems:[], expenses:[], totalBudget:0, hotel:null });
 
 // ——— LIVE STATE (loaded from storage on init) ———
-let trips = {
-  paris: {name:'🇫🇷 Paris Getaway', sub:'City of Lights — Spring Escape', lat:48.8566, lng:2.3522, destination:'Paris, France', start:'2025-06-14', end:'2025-06-22', travelers:'2', totalBudget:6000},
-  tokyo: {name:'🇯🇵 Tokyo Adventure', sub:'Neon Nights & Cherry Blossoms', lat:35.6762, lng:139.6503, destination:'Tokyo, Japan', start:'', end:'', travelers:'2', totalBudget:0},
-  nyc:   {name:'🗽 NYC Weekend', sub:'The City That Never Sleeps', lat:40.7128, lng:-74.0060, destination:'New York, USA', start:'', end:'', travelers:'2', totalBudget:0},
-};
-let tripData = {
-  paris: JSON.parse(JSON.stringify(DEFAULT_PARIS)),
-  tokyo: EMPTY_DATA(),
-  nyc:   EMPTY_DATA(),
-};
+// ——— LIVE STATE — starts empty, loadFromStorage fills it ———
+let trips    = {};
+let tripData = {};
+let currentTripId = '';
 // ── Global fetch rate-limiter — prevents startup crash in WebView2 ──
 const _fetchQueue = { active: 0, max: 4, pending: [] };
 const _origFetch = window.fetch.bind(window);
@@ -1572,7 +1602,7 @@ function _drain() {
     _fetchQueue.pending.shift()();
 }
 
-let currentTripId = 'paris';
+// currentTripId declared above with trips/tripData
 
 // Shortcut to current trip's data
 function cd() { return tripData[currentTripId]; }
@@ -1594,6 +1624,7 @@ function loadFromStorage() {
     if (t) trips    = JSON.parse(t);
     if (d) tripData = JSON.parse(d);
     if (c && trips[c]) currentTripId = c;
+    else if (Object.keys(trips).length) currentTripId = Object.keys(trips)[0];
   } catch(e) { console.error('Load error:', e); }
   const savedKey = localStorage.getItem('voy_apikey');
   if (savedKey) voyagerApiKey = savedKey;
@@ -1607,13 +1638,18 @@ function loadFromStorage() {
 function rebuildTripSelect() {
   const sel = document.getElementById('tripSelect');
   sel.innerHTML = '';
+  if (!Object.keys(trips).length) {
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = 'No trips yet — create one!';
+    sel.appendChild(opt);
+    return;
+  }
   for (const [id, t] of Object.entries(trips)) {
     const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = t.name;
+    opt.value = id; opt.textContent = t.name;
     sel.appendChild(opt);
   }
-  sel.value = currentTripId;
+  if (currentTripId) sel.value = currentTripId;
 }
 
 // ——— NAVIGATION ———
@@ -4894,10 +4930,67 @@ function selectAvatarEmoji(e) {
   if (el) el.textContent = e;
 }
 
+function triggerAvatarUpload() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      _profileData.avatarImage = dataUrl;
+      _profileData.avatarEmoji = null;
+      localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+      // Update all avatar displays
+      ['profileAvatarImg','peAvatarPreview','topbarAvatarImg'].forEach(id => {
+        const img = document.getElementById(id);
+        if (img) { img.src = dataUrl; img.style.display = 'block'; }
+      });
+      ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      const topEmoji = document.getElementById('topbarAvatarEmoji');
+      if (topEmoji) topEmoji.style.display = 'none';
+      showToast('✓ Profile photo updated!');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function triggerCoverUpload() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      _profileData.coverImage = dataUrl;
+      _profileData.coverGradient = null;
+      localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+      const bg = document.getElementById('profileCoverBg');
+      const cover = document.getElementById('profileCover');
+      if (bg) { bg.style.backgroundImage = `url('${dataUrl}')`; bg.style.background = 'none'; }
+      if (cover) cover.style.background = 'transparent';
+      closeModal('profileCoverModal');
+      showToast('✓ Cover photo updated!');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
 function selectCoverGradient(g) {
   _profileData.coverGradient = g;
+  _profileData.coverImage = null;
   const cover = document.getElementById('profileCover');
+  const bg = document.getElementById('profileCoverBg');
   if (cover) cover.style.background = g;
+  if (bg) { bg.style.backgroundImage = ''; bg.style.background = 'none'; }
 }
 
 function openProfilePanel() {
@@ -4911,11 +5004,30 @@ function renderProfileUI() {
   const p = _profileData;
   const el = (id) => document.getElementById(id);
   if (el('profileDisplayName')) el('profileDisplayName').textContent = p.displayName;
-  if (el('profileHandle'))      el('profileHandle').textContent = p.handle.startsWith('@') ? p.handle : '@' + p.handle;
+  if (el('profileHandle'))      el('profileHandle').textContent = p.handle?.startsWith('@') ? p.handle : '@' + (p.handle||'voyager');
   if (el('profileBio'))         el('profileBio').textContent = p.bio;
-  if (el('profileAvatarEmoji')) el('profileAvatarEmoji').textContent = p.avatarEmoji;
-  if (el('topbarAvatarEmoji'))  el('topbarAvatarEmoji').textContent  = p.avatarEmoji;
-  if (el('profileCover'))       el('profileCover').style.background = p.coverGradient;
+
+  // Avatar — photo takes priority over emoji
+  if (p.avatarImage) {
+    ['profileAvatarImg','peAvatarPreview'].forEach(id => { const img=el(id); if(img){img.src=p.avatarImage;img.style.display='block';} });
+    ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => { const e=el(id); if(e) e.style.display='none'; });
+    if(el('topbarAvatarEmoji')) el('topbarAvatarEmoji').style.display='none';
+  } else {
+    ['profileAvatarImg','peAvatarPreview'].forEach(id => { const img=el(id); if(img) img.style.display='none'; });
+    ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => { const e=el(id); if(e){e.textContent=p.avatarEmoji||'✈️';e.style.display='';} });
+    if(el('topbarAvatarEmoji')){el('topbarAvatarEmoji').textContent=p.avatarEmoji||'✈️';el('topbarAvatarEmoji').style.display='';}
+  }
+
+  // Cover — photo takes priority over gradient
+  const coverEl = el('profileCover');
+  const bgEl    = el('profileCoverBg');
+  if (p.coverImage) {
+    if (coverEl) coverEl.style.background = 'transparent';
+    if (bgEl) { bgEl.style.backgroundImage=`url('${p.coverImage}')`;bgEl.style.background='none'; }
+  } else {
+    if (coverEl) coverEl.style.background = p.coverGradient || 'linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)';
+    if (bgEl) bgEl.style.backgroundImage = '';
+  }
 
   // Stats — only count user's own trips (keyed to their account, not local demo data)
   const userTripIds = _voyagerProfile ? Object.keys(trips).filter(id => {
@@ -5626,40 +5738,61 @@ setTimeout(refreshHeroLiveData, 1500);
 
 <!-- ═══ PLACE DETAIL MODAL ═══ -->
 <!-- ═══ PROFILE EDIT MODAL ═══ -->
+<!-- ═══ PROFILE COVER MODAL ═══ -->
+<div id="profileCoverModal" class="modal-overlay" onclick="if(event.target===this)closeModal('profileCoverModal')">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><span class="modal-title">Edit Cover</span><button class="modal-close" onclick="closeModal('profileCoverModal')">✕</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label class="modal-label">Upload a photo</label>
+        <button onclick="triggerCoverUpload()" style="width:100%;padding:28px;background:var(--surface2);border:2px dashed var(--border2);border-radius:10px;color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
+          📷 Click to upload cover photo
+        </button>
+      </div>
+      <div>
+        <label class="modal-label">Or choose a gradient</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)')" style="background:linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌌 Midnight</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#0f2027,#203a43,#2c5364)')" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌊 Ocean</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a)')" style="background:linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌅 Sunset</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a)')" style="background:linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌿 Forest</button>
+          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a)')" style="background:linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌙 Aurora</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-save" onclick="closeModal('profileCoverModal')">Done</button></div>
+  </div>
+</div>
+
 <div id="profileEditModal" class="modal-overlay" onclick="if(event.target===this)closeModal('profileEditModal')">
   <div class="modal" style="max-width:420px">
     <div class="modal-header"><span class="modal-title">Edit Profile</span><button class="modal-close" onclick="closeModal('profileEditModal')">✕</button></div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <!-- Avatar image upload -->
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:60px;height:60px;border-radius:50%;overflow:hidden;background:var(--surface2);border:2px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer" onclick="triggerAvatarUpload()">
+          <img id="peAvatarPreview" style="display:none;width:100%;height:100%;object-fit:cover">
+          <span id="peAvatarEmoji">✈️</span>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">Profile Photo</div>
+          <button onclick="triggerAvatarUpload()" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit">📷 Upload Photo</button>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Or pick an emoji:</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
+            <button onclick="selectAvatarEmoji('✈️')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">✈️</button>
+            <button onclick="selectAvatarEmoji('🌍')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🌍</button>
+            <button onclick="selectAvatarEmoji('🗺️')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🗺️</button>
+            <button onclick="selectAvatarEmoji('🏔️')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🏔️</button>
+            <button onclick="selectAvatarEmoji('🏖️')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🏖️</button>
+            <button onclick="selectAvatarEmoji('🚀')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🚀</button>
+            <button onclick="selectAvatarEmoji('🧭')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🧭</button>
+            <button onclick="selectAvatarEmoji('🎒')" style="font-size:18px;background:none;border:none;cursor:pointer;padding:2px">🎒</button>
+          </div>
+        </div>
+      </div>
       <div><label class="modal-label">Display Name</label><input type="text" id="peDisplayName" class="modal-input" placeholder="Your name" maxlength="40"></div>
       <div><label class="modal-label">Handle</label><input type="text" id="peHandle" class="modal-input" placeholder="@yourhandle" maxlength="30"></div>
       <div><label class="modal-label">Bio</label><textarea id="peBio" class="modal-input" style="resize:vertical;min-height:70px" placeholder="Tell the world about your travel style..." maxlength="150"></textarea></div>
-      <div>
-        <label class="modal-label">Avatar Emoji</label>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="avatarEmojiPicker">
-          <button onclick="selectAvatarEmoji('✈️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">✈️</button>
-          <button onclick="selectAvatarEmoji('🌍')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🌍</button>
-          <button onclick="selectAvatarEmoji('🗺️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🗺️</button>
-          <button onclick="selectAvatarEmoji('🏔️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏔️</button>
-          <button onclick="selectAvatarEmoji('🏖️')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏖️</button>
-          <button onclick="selectAvatarEmoji('🗽')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🗽</button>
-          <button onclick="selectAvatarEmoji('🏯')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🏯</button>
-          <button onclick="selectAvatarEmoji('🚀')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🚀</button>
-          <button onclick="selectAvatarEmoji('🧭')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🧭</button>
-          <button onclick="selectAvatarEmoji('🎒')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🎒</button>
-          <button onclick="selectAvatarEmoji('🛸')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🛸</button>
-          <button onclick="selectAvatarEmoji('🌊')" style="font-size:22px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;width:40px;height:40px;cursor:pointer">🌊</button>
-        </div>
-      </div>
-      <div>
-        <label class="modal-label">Cover Style</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)')" style="background:linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌌 Midnight</button>
-          <button onclick="selectCoverGradient('linear-gradient(135deg,#0f2027,#203a43,#2c5364)')" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌊 Ocean</button>
-          <button onclick="selectCoverGradient('linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a)')" style="background:linear-gradient(135deg,#4a1a1a,#4e2d1b,#3a1a1a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌅 Sunset</button>
-          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a)')" style="background:linear-gradient(135deg,#1a4a2a,#1b4e2d,#1a3a2a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌿 Forest</button>
-          <button onclick="selectCoverGradient('linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a)')" style="background:linear-gradient(135deg,#1a1a4a,#2d1b4e,#4a1a3a);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;color:#fff;cursor:pointer;font-weight:600">🌙 Aurora</button>
-        </div>
-      </div>
     </div>
     <div class="modal-footer"><button class="btn-save" onclick="saveProfile()">Save Profile</button></div>
   </div>
