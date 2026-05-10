@@ -1647,17 +1647,32 @@ function showPanel(name, el) {
 // ——— MODAL ———
 function openModal(id) {
   if (id === 'eventModal') populateEventDays();
-  // Try the -overlay pattern first (old modals), then direct id (new modals)
+  // Old pattern: element with id + '-overlay'
   const overlayEl = document.getElementById(id + '-overlay');
   if (overlayEl) { overlayEl.classList.add('open'); return; }
+  // New pattern: element with id directly — if it has modal-overlay class use .open, else toggle display
   const directEl = document.getElementById(id);
-  if (directEl) { directEl.style.display = 'flex'; }
+  if (!directEl) return;
+  if (directEl.classList.contains('modal-overlay')) {
+    directEl.classList.add('open');
+  } else {
+    directEl.style.display = 'flex';
+  }
 }
 function closeModal(id) {
   const overlayEl = document.getElementById(id + '-overlay');
-  if (overlayEl) { overlayEl.classList.remove('open'); if (id === 'tripModal') closeDestDropdown(); return; }
+  if (overlayEl) {
+    overlayEl.classList.remove('open');
+    if (id === 'tripModal') closeDestDropdown();
+    return;
+  }
   const directEl = document.getElementById(id);
-  if (directEl) { directEl.style.display = 'none'; }
+  if (!directEl) return;
+  if (directEl.classList.contains('modal-overlay')) {
+    directEl.classList.remove('open');
+  } else {
+    directEl.style.display = 'none';
+  }
   if (id === 'tripModal') closeDestDropdown();
 }
 
@@ -2041,7 +2056,7 @@ async function geocodeDest(dest, tripId) {
     if (data.length > 0 && trips[tripId]) {
       trips[tripId].lat = parseFloat(data[0].lat);
       trips[tripId].lng = parseFloat(data[0].lon);
-      if (currentTripId === tripId && gMap) if(gMap) gMap.setCenter({lat:trips[tripId].lat,lng:trips[tripId].lng});
+      if (currentTripId === tripId && gMap) gMap.setCenter({lat:trips[tripId].lat,lng:trips[tripId].lng});
       save();
     }
   } catch(e) {}
@@ -2350,7 +2365,7 @@ async function addStopFromSearch() {
     if (data.length > 0) {
       routeStops.push({ name: q, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
       renderRouteStops();
-      if (gMap) if(gMap) gMap.setCenter({lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)});
+      if (gMap) gMap.setCenter({lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)});
       showToast('📍 Added: ' + q);
     } else {
       showToast('Location not found. Try a more specific name or address.');
@@ -2526,7 +2541,7 @@ function fitMapToBounds(latlngs) {
   if (!gMap || !window._gmLoaded || !latlngs?.length) return;
   const bounds = new google.maps.LatLngBounds();
   latlngs.forEach(c => bounds.extend({ lat: c[0], lng: c[1] }));
-  gMap.fitBounds(bounds, 40);
+  gMap.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
 }
 
 function drawRoutePolyline(latlngs, color, weight, dashed) {
@@ -5255,8 +5270,18 @@ async function doSignup() {
       return;
     }
 
-    // Supabase silently returns a user for duplicate emails when confirmation is off.
-    // Detect this: check if a voyager_users row already exists for this id.
+    // Explicitly apply the session so auth.uid() is set for RLS on the next insert
+    if (data.session) {
+      await _supabaseClient.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+    }
+
+    // Small delay to ensure session propagates
+    await new Promise(r => setTimeout(r, 300));
+
+    // Detect duplicate email (Supabase silently succeeds when email confirmation is off)
     const { data: existingRow } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id).maybeSingle();
     if (existingRow) {
       if (errEl) errEl.textContent = 'An account with this email already exists. Please log in instead.';
@@ -5270,7 +5295,7 @@ async function doSignup() {
       id: data.user.id, username: handle,
       display_name: name, avatar_emoji: '✈️', bio: '',
     });
-    if (insertErr) { if (errEl) errEl.textContent = 'Account created but profile save failed: ' + insertErr.message; return; }
+    if (insertErr) { if (errEl) errEl.textContent = 'Profile save failed: ' + insertErr.message; return; }
 
     _profileData.displayName = name;
     _profileData.handle = '@' + handle;
