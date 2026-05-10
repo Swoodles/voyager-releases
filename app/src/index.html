@@ -5259,7 +5259,10 @@ async function doSignup() {
   // Check if email already has an account by attempting login silently
   if (errEl) errEl.textContent = 'Creating account...';
   try {
-    const { data, error } = await _supabaseClient.auth.signUp({ email, password });
+    const { data, error } = await _supabaseClient.auth.signUp({
+      email, password,
+      options: { data: { username: handle, display_name: name } }
+    });
     if (error) {
       if (error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('registered')) {
         if (errEl) errEl.textContent = 'An account with this email already exists. Please log in instead.';
@@ -5270,32 +5273,15 @@ async function doSignup() {
       return;
     }
 
-    // Explicitly apply the session so auth.uid() is set for RLS on the next insert
-    if (data.session) {
-      await _supabaseClient.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      });
-    }
-
-    // Small delay to ensure session propagates
-    await new Promise(r => setTimeout(r, 300));
+    // Give the trigger a moment to run
+    await new Promise(r => setTimeout(r, 600));
 
     // Detect duplicate email (Supabase silently succeeds when email confirmation is off)
-    const { data: existingRow } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id).maybeSingle();
-    if (existingRow) {
-      if (errEl) errEl.textContent = 'An account with this email already exists. Please log in instead.';
-      await _supabaseClient.auth.signOut();
-      setTimeout(() => switchAuthTab('login'), 1800);
+    const { data: existingRows } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id);
+    if (!existingRows?.length) {
+      if (errEl) errEl.textContent = 'Account setup failed. Please try again.';
       return;
     }
-
-    // Create voyager_users profile row
-    const { error: insertErr } = await _supabaseClient.from('voyager_users').insert({
-      id: data.user.id, username: handle,
-      display_name: name, avatar_emoji: '✈️', bio: '',
-    });
-    if (insertErr) { if (errEl) errEl.textContent = 'Profile save failed: ' + insertErr.message; return; }
 
     _profileData.displayName = name;
     _profileData.handle = '@' + handle;
