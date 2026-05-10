@@ -5254,18 +5254,23 @@ async function doSignup() {
       }
       return;
     }
-    // If user already exists, Supabase may return a user with identities=[]
-    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
-      if (errEl) errEl.textContent = 'An account with this email already exists. Please log in.';
+
+    // Supabase silently returns a user for duplicate emails when confirmation is off.
+    // Detect this: check if a voyager_users row already exists for this id.
+    const { data: existingRow } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id).maybeSingle();
+    if (existingRow) {
+      if (errEl) errEl.textContent = 'An account with this email already exists. Please log in instead.';
+      await _supabaseClient.auth.signOut();
       setTimeout(() => switchAuthTab('login'), 1800);
       return;
     }
 
     // Create voyager_users profile row
-    await _supabaseClient.from('voyager_users').insert({
+    const { error: insertErr } = await _supabaseClient.from('voyager_users').insert({
       id: data.user.id, username: handle,
       display_name: name, avatar_emoji: '✈️', bio: '',
     });
+    if (insertErr) { if (errEl) errEl.textContent = 'Account created but profile save failed: ' + insertErr.message; return; }
 
     _profileData.displayName = name;
     _profileData.handle = '@' + handle;
@@ -5279,19 +5284,31 @@ async function doSignup() {
 async function onAuthSuccess(user) {
   _supabaseUser = user;
 
-  // Load voyager profile from DB
+  // Load voyager profile from DB — this verifies the account truly exists
   const { data: prof } = await _supabaseClient.from('voyager_users').select('*').eq('id', user.id).maybeSingle();
   _voyagerProfile = prof;
 
-  // Merge DB profile into local profile data
-  if (prof) {
-    _profileData.displayName = prof.display_name || _profileData.displayName;
-    _profileData.handle      = '@' + prof.username;
-    _profileData.avatarEmoji = prof.avatar_emoji || _profileData.avatarEmoji;
-    _profileData.bio         = prof.bio || _profileData.bio;
-    if (prof.cover_gradient) _profileData.coverGradient = prof.cover_gradient;
-    localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+  // If no voyager_users row exists, this is an incomplete/ghost account — reject it
+  if (!prof) {
+    await _supabaseClient.auth.signOut();
+    _supabaseUser = null;
+    const errEl = document.getElementById('authLoginError');
+    if (errEl) errEl.textContent = 'Account not found. Please sign up first.';
+    const signupErr = document.getElementById('authSignupError');
+    if (signupErr) signupErr.textContent = 'Something went wrong creating your account. Please try again.';
+    return;
   }
+
+  // Merge DB profile into local profile data
+  _profileData.displayName = prof.display_name || _profileData.displayName;
+  _profileData.handle      = '@' + prof.username;
+  _profileData.avatarEmoji = prof.avatar_emoji || _profileData.avatarEmoji;
+  _profileData.bio         = prof.bio || _profileData.bio;
+  if (prof.cover_gradient) _profileData.coverGradient = prof.cover_gradient;
+  localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+
+  // Save email so login form can pre-fill next time
+  localStorage.setItem('voy_last_email', user.email || '');
 
   // Dismiss auth screen
   const screen = document.getElementById('authScreen');
@@ -5302,19 +5319,17 @@ async function onAuthSuccess(user) {
   if (el) el.textContent = _profileData.avatarEmoji;
 
   subscribeToNotifications();
-  showToast(`✓ Welcome, ${_profileData.displayName}!`);
+  showToast(`✓ Welcome back, ${prof.display_name || prof.username}!`);
 }
 
 // ——— SESSION RESTORE ON STARTUP ———
 async function initAuth() {
-  console.log('[Voyager] initAuth started');
-  // Wait up to 5s for Supabase CDN to load
+  // Wait up to 6s for Supabase CDN to load
   let waited = 0;
-  while (!(window.supabase || window.Supabase)?.createClient && waited < 5000) {
+  while (!(window.supabase || window.Supabase)?.createClient && waited < 6000) {
     await new Promise(r => setTimeout(r, 100));
     waited += 100;
   }
-  console.log('[Voyager] After wait:', waited + 'ms', '| supabase:', typeof window.supabase, '| URL:', SUPABASE_URL?.slice(0,30));
 
   const url = SUPABASE_URL;
   const key = SUPABASE_KEY;
@@ -5333,13 +5348,21 @@ async function initAuth() {
     return;
   }
 
-  // Try to restore existing session
-  const { data: { session } } = await _supabaseClient.auth.getSession();
-  if (session?.user) {
-    await onAuthSuccess(session.user);
-  }
-  // Otherwise auth screen stays visible
+  // Pre-fill last used email on login form
+  const lastEmail = localStorage.getItem('voy_last_email') || '';
+  const emailEl = document.getElementById('authLoginEmail');
+  if (emailEl && lastEmail) emailEl.value = lastEmail;
 
+  // Try to restore existing session from Supabase's built-in storage
+  try {
+    const { data: { session } } = await _supabaseClient.auth.getSession();
+    if (session?.user) {
+      await onAuthSuccess(session.user);
+      return; // Session restored — skip showing auth screen
+    }
+  } catch(e) { console.warn('[Voyager] Session restore failed:', e); }
+
+  // No session — auth screen stays visible
   // Listen for future auth state changes
   _supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user && !_supabaseUser) {
@@ -5347,8 +5370,9 @@ async function initAuth() {
     }
     if (event === 'SIGNED_OUT') {
       _supabaseUser = null; _voyagerProfile = null;
+      localStorage.removeItem('voy_last_email');
       const screen = document.getElementById('authScreen');
-      if (screen) { screen.style.opacity='1'; screen.style.display='flex'; }
+      if (screen) { screen.style.opacity = '1'; screen.style.display = 'flex'; }
     }
   });
 }
