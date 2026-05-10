@@ -5273,13 +5273,16 @@ async function doSignup() {
       return;
     }
 
-    // Give the trigger a moment to run
-    await new Promise(r => setTimeout(r, 600));
+    // Give the trigger time to run — retry up to 5 times
+    let voyagerRow = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise(r => setTimeout(r, 500));
+      const { data: rows } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id);
+      if (rows?.length) { voyagerRow = rows[0]; break; }
+    }
 
-    // Detect duplicate email (Supabase silently succeeds when email confirmation is off)
-    const { data: existingRows } = await _supabaseClient.from('voyager_users').select('id').eq('id', data.user.id);
-    if (!existingRows?.length) {
-      if (errEl) errEl.textContent = 'Account setup failed. Please try again.';
+    if (!voyagerRow) {
+      if (errEl) errEl.textContent = 'Account setup timed out. Please try logging in — your account may already be ready.';
       return;
     }
 
