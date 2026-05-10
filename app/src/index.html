@@ -526,6 +526,16 @@ window.initGoogleMaps = function() {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(79,142,247,0.2);
   }
+  .modal-label { font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:5px;margin-top:10px;text-transform:uppercase;letter-spacing:0.3px }
+  .modal-label:first-child { margin-top:0 }
+  .modal-input { display:block;width:100%;padding:10px 13px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;outline:none;transition:border-color 0.15s,box-shadow 0.15s;box-sizing:border-box }
+  .modal-input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,0.15) }
+  .modal-input::placeholder { color:var(--text3) }
+  /* Crop UI */
+  #cropModal { display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9500;flex-direction:column;align-items:center;justify-content:center;gap:14px }
+  #cropViewport { width:280px;height:280px;border-radius:50%;overflow:hidden;border:3px solid var(--accent);cursor:move;position:relative;flex-shrink:0 }
+  #cropViewport.rect { border-radius:10px;height:140px }
+  #cropImg { position:absolute;max-width:none;cursor:move;user-select:none }
   .agent-log-line { padding:3px 0;border-bottom:1px solid var(--border);color:var(--text3); }
   .agent-log-line.success { color:var(--green); }
   .agent-log-line.error   { color:var(--coral); }
@@ -581,9 +591,10 @@ window.initGoogleMaps = function() {
     <h2 id="panelTitle">Overview</h2>
     <div class="topbar-actions">
       <div id="profileTopBtn" onclick="showPanel('profile', document.querySelector('[onclick*=profile]'))" title="My Profile"
-        style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;border:2px solid var(--border2);transition:border-color 0.2s,transform 0.15s;flex-shrink:0"
+        style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;border:2px solid var(--border2);transition:border-color 0.2s,transform 0.15s;flex-shrink:0;overflow:hidden"
         onmouseover="this.style.borderColor='var(--accent)';this.style.transform='scale(1.08)'"
         onmouseout="this.style.borderColor='var(--border2)';this.style.transform='scale(1)'">
+        <img id="topbarAvatarImg" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%">
         <span id="topbarAvatarEmoji">✈️</span>
       </div>
     </div>
@@ -4915,12 +4926,23 @@ function loadProfile() {
 }
 
 function saveProfile() {
-  _profileData.displayName = document.getElementById('peDisplayName')?.value.trim() || _profileData.displayName;
-  _profileData.handle = document.getElementById('peHandle')?.value.trim() || _profileData.handle;
-  _profileData.bio = document.getElementById('peBio')?.value.trim() || _profileData.bio;
+  const name   = document.getElementById('peDisplayName')?.value.trim();
+  const handle = document.getElementById('peHandle')?.value.trim();
+  const bio    = document.getElementById('peBio')?.value.trim();
+  if (name)   _profileData.displayName = name;
+  if (handle) _profileData.handle = handle.startsWith('@') ? handle : '@' + handle;
+  if (bio !== undefined) _profileData.bio = bio;
   localStorage.setItem('voy_profile', JSON.stringify(_profileData));
   closeModal('profileEditModal');
   renderProfileUI();
+  // Sync to Supabase if connected
+  if (_supabaseClient && _voyagerProfile) {
+    _supabaseClient.from('voyager_users').update({
+      display_name: _profileData.displayName,
+      bio: _profileData.bio,
+      avatar_emoji: _profileData.avatarEmoji || '✈️',
+    }).eq('id', _supabaseUser.id).then(() => {});
+  }
   showToast('✓ Profile saved!');
 }
 
@@ -4930,6 +4952,144 @@ function selectAvatarEmoji(e) {
   if (el) el.textContent = e;
 }
 
+// ——— CROP ENGINE ———
+let _cropTarget = null; // 'avatar' | 'cover'
+let _cropDragStart = null;
+let _cropOffsetX = 0, _cropOffsetY = 0, _cropScale = 1;
+let _cropNaturalW = 0, _cropNaturalH = 0;
+
+function openCropModal(dataUrl, target) {
+  _cropTarget = target;
+  _cropScale = 1; _cropOffsetX = 0; _cropOffsetY = 0;
+  const modal = document.getElementById('cropModal');
+  const vp    = document.getElementById('cropViewport');
+  const img   = document.getElementById('cropImg');
+  const zoom  = document.getElementById('cropZoom');
+  if (!modal || !img) return;
+  // Set viewport shape
+  if (target === 'avatar') vp.className = '';
+  else { vp.className = 'rect'; }
+  zoom.value = 100;
+  modal.style.display = 'flex';
+  img.src = dataUrl;
+  img.onload = () => {
+    _cropNaturalW = img.naturalWidth;
+    _cropNaturalH = img.naturalHeight;
+    cropFitToViewport();
+  };
+}
+
+function cropFitToViewport() {
+  const vp = document.getElementById('cropViewport');
+  const img = document.getElementById('cropImg');
+  if (!vp || !img) return;
+  const vpW = vp.offsetWidth, vpH = vp.offsetHeight;
+  const scale = Math.max(vpW / _cropNaturalW, vpH / _cropNaturalH);
+  _cropScale = scale;
+  _cropOffsetX = (vpW - _cropNaturalW * scale) / 2;
+  _cropOffsetY = (vpH - _cropNaturalH * scale) / 2;
+  cropApplyTransform();
+}
+
+function cropApplyTransform() {
+  const img = document.getElementById('cropImg');
+  if (!img) return;
+  img.style.width  = (_cropNaturalW * _cropScale) + 'px';
+  img.style.height = (_cropNaturalH * _cropScale) + 'px';
+  img.style.left   = _cropOffsetX + 'px';
+  img.style.top    = _cropOffsetY + 'px';
+}
+
+function cropUpdateZoom(val) {
+  const vp = document.getElementById('cropViewport');
+  if (!vp) return;
+  const vpW = vp.offsetWidth, vpH = vp.offsetHeight;
+  const baseScale = Math.max(vpW / _cropNaturalW, vpH / _cropNaturalH);
+  _cropScale = baseScale * (val / 100);
+  // Keep centered
+  _cropOffsetX = Math.min(0, Math.max(vpW - _cropNaturalW * _cropScale, _cropOffsetX));
+  _cropOffsetY = Math.min(0, Math.max(vpH - _cropNaturalH * _cropScale, _cropOffsetY));
+  cropApplyTransform();
+}
+
+// Drag to pan
+document.addEventListener('DOMContentLoaded', () => {
+  const img = document.getElementById('cropImg');
+  if (!img) return;
+  img.addEventListener('mousedown', e => {
+    _cropDragStart = { x: e.clientX - _cropOffsetX, y: e.clientY - _cropOffsetY };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!_cropDragStart) return;
+    const vp = document.getElementById('cropViewport');
+    if (!vp) return;
+    const vpW = vp.offsetWidth, vpH = vp.offsetHeight;
+    _cropOffsetX = Math.min(0, Math.max(vpW - _cropNaturalW * _cropScale, e.clientX - _cropDragStart.x));
+    _cropOffsetY = Math.min(0, Math.max(vpH - _cropNaturalH * _cropScale, e.clientY - _cropDragStart.y));
+    cropApplyTransform();
+  });
+  document.addEventListener('mouseup', () => { _cropDragStart = null; });
+});
+
+function cropApply() {
+  const vp  = document.getElementById('cropViewport');
+  const img = document.getElementById('cropImg');
+  if (!vp || !img) return;
+  // Draw viewport area to canvas
+  const canvas = document.createElement('canvas');
+  canvas.width  = vp.offsetWidth;
+  canvas.height = vp.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  if (_cropTarget === 'avatar') {
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, canvas.height/2, canvas.width/2, 0, Math.PI*2);
+    ctx.clip();
+  }
+  ctx.drawImage(img, _cropOffsetX, _cropOffsetY, _cropNaturalW * _cropScale, _cropNaturalH * _cropScale);
+  const cropped = canvas.toDataURL('image/jpeg', 0.88);
+  closeCropModal();
+  if (_cropTarget === 'avatar') applyAvatarImage(cropped);
+  else applyAvatarImage(cropped, true);
+}
+
+function closeCropModal() {
+  const m = document.getElementById('cropModal');
+  if (m) m.style.display = 'none';
+}
+
+function applyAvatarImage(dataUrl, isCover) {
+  if (isCover) {
+    _profileData.coverImage = dataUrl;
+    _profileData.coverGradient = null;
+    localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+    const bg = document.getElementById('profileCoverBg');
+    const cover = document.getElementById('profileCover');
+    if (bg) {
+      bg.style.backgroundImage = `url('${dataUrl}')`;
+      bg.style.backgroundSize  = 'cover';
+      bg.style.backgroundPosition = 'center';
+    }
+    if (cover) cover.style.background = 'transparent';
+    showToast('✓ Cover photo updated!');
+  } else {
+    _profileData.avatarImage = dataUrl;
+    _profileData.avatarEmoji = null;
+    localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+    // Update all avatar displays
+    const imgs = ['profileAvatarImg', 'peAvatarPreview', 'topbarAvatarImg'];
+    imgs.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.src = dataUrl; el.style.display = 'block'; }
+    });
+    ['profileAvatarEmoji','peAvatarEmoji','topbarAvatarEmoji'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    showToast('✓ Profile photo updated!');
+  }
+}
+
 function triggerAvatarUpload() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'image/*';
@@ -4937,24 +5097,7 @@ function triggerAvatarUpload() {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target.result;
-      _profileData.avatarImage = dataUrl;
-      _profileData.avatarEmoji = null;
-      localStorage.setItem('voy_profile', JSON.stringify(_profileData));
-      // Update all avatar displays
-      ['profileAvatarImg','peAvatarPreview','topbarAvatarImg'].forEach(id => {
-        const img = document.getElementById(id);
-        if (img) { img.src = dataUrl; img.style.display = 'block'; }
-      });
-      ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-      const topEmoji = document.getElementById('topbarAvatarEmoji');
-      if (topEmoji) topEmoji.style.display = 'none';
-      showToast('✓ Profile photo updated!');
-    };
+    reader.onload = e => openCropModal(e.target.result, 'avatar');
     reader.readAsDataURL(file);
   };
   input.click();
@@ -4967,17 +5110,9 @@ function triggerCoverUpload() {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target.result;
-      _profileData.coverImage = dataUrl;
-      _profileData.coverGradient = null;
-      localStorage.setItem('voy_profile', JSON.stringify(_profileData));
-      const bg = document.getElementById('profileCoverBg');
-      const cover = document.getElementById('profileCover');
-      if (bg) { bg.style.backgroundImage = `url('${dataUrl}')`; bg.style.background = 'none'; }
-      if (cover) cover.style.background = 'transparent';
+    reader.onload = e => {
+      openCropModal(e.target.result, 'cover');
       closeModal('profileCoverModal');
-      showToast('✓ Cover photo updated!');
     };
     reader.readAsDataURL(file);
   };
@@ -4988,9 +5123,14 @@ function selectCoverGradient(g) {
   _profileData.coverGradient = g;
   _profileData.coverImage = null;
   const cover = document.getElementById('profileCover');
-  const bg = document.getElementById('profileCoverBg');
+  const bg    = document.getElementById('profileCoverBg');
   if (cover) cover.style.background = g;
-  if (bg) { bg.style.backgroundImage = ''; bg.style.background = 'none'; }
+  if (bg) {
+    bg.style.backgroundImage = '';
+    bg.style.backgroundSize  = '';
+  }
+  localStorage.setItem('voy_profile', JSON.stringify(_profileData));
+  closeModal('profileCoverModal');
 }
 
 function openProfilePanel() {
@@ -5009,24 +5149,27 @@ function renderProfileUI() {
 
   // Avatar — photo takes priority over emoji
   if (p.avatarImage) {
-    ['profileAvatarImg','peAvatarPreview'].forEach(id => { const img=el(id); if(img){img.src=p.avatarImage;img.style.display='block';} });
-    ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => { const e=el(id); if(e) e.style.display='none'; });
-    if(el('topbarAvatarEmoji')) el('topbarAvatarEmoji').style.display='none';
+    ['profileAvatarImg','peAvatarPreview','topbarAvatarImg'].forEach(id => { const img=el(id); if(img){img.src=p.avatarImage;img.style.display='block';} });
+    ['profileAvatarEmoji','peAvatarEmoji','topbarAvatarEmoji'].forEach(id => { const e=el(id); if(e) e.style.display='none'; });
   } else {
-    ['profileAvatarImg','peAvatarPreview'].forEach(id => { const img=el(id); if(img) img.style.display='none'; });
+    ['profileAvatarImg','peAvatarPreview','topbarAvatarImg'].forEach(id => { const img=el(id); if(img) img.style.display='none'; });
     ['profileAvatarEmoji','peAvatarEmoji'].forEach(id => { const e=el(id); if(e){e.textContent=p.avatarEmoji||'✈️';e.style.display='';} });
     if(el('topbarAvatarEmoji')){el('topbarAvatarEmoji').textContent=p.avatarEmoji||'✈️';el('topbarAvatarEmoji').style.display='';}
   }
 
-  // Cover — photo takes priority over gradient
+  // Cover — photo takes priority over gradient (never use background shorthand after backgroundImage)
   const coverEl = el('profileCover');
   const bgEl    = el('profileCoverBg');
   if (p.coverImage) {
     if (coverEl) coverEl.style.background = 'transparent';
-    if (bgEl) { bgEl.style.backgroundImage=`url('${p.coverImage}')`;bgEl.style.background='none'; }
+    if (bgEl) {
+      bgEl.style.backgroundImage    = `url('${p.coverImage}')`;
+      bgEl.style.backgroundSize     = 'cover';
+      bgEl.style.backgroundPosition = 'center';
+    }
   } else {
     if (coverEl) coverEl.style.background = p.coverGradient || 'linear-gradient(135deg,#1a2a4a,#2d1b4e,#1a3a2a)';
-    if (bgEl) bgEl.style.backgroundImage = '';
+    if (bgEl) { bgEl.style.backgroundImage = ''; bgEl.style.backgroundSize = ''; }
   }
 
   // Stats — only count user's own trips (keyed to their account, not local demo data)
@@ -5094,7 +5237,8 @@ function savePhotos(photos) {
 
 let _lightboxPhotos = [], _lightboxIdx = 0;
 function openLightbox(photos, idx) {
-  _lightboxPhotos = photos; _lightboxIdx = idx;
+  _lightboxPhotos = photos || window._currentPhotos || [];
+  _lightboxIdx = idx || 0;
   const lb = document.getElementById('photoLightbox');
   if (lb) lb.style.display = 'flex';
   renderLightboxPhoto();
@@ -5110,8 +5254,10 @@ function lightboxNav(dir) {
 function renderLightboxPhoto() {
   const p = _lightboxPhotos[_lightboxIdx];
   if (!p) return;
-  document.getElementById('lightboxImg').src = p.dataUrl;
-  document.getElementById('lightboxCaption').textContent = p.caption || '';
+  const img = document.getElementById('lightboxImg');
+  const cap = document.getElementById('lightboxCaption');
+  if (img) img.src = p.dataUrl;
+  if (cap) cap.textContent = p.caption || '';
 }
 
 function deletePhoto(id) {
@@ -5184,32 +5330,77 @@ function switchProfileTab(tab) {
   // ——— PHOTOS TAB ———
   else if (tab === 'photos') {
     const photos = getPhotos();
-    const grouped = {};
-    photos.forEach(p => { const k = p.tripName||'Other'; if (!grouped[k]) grouped[k]=[]; grouped[k].push(p); });
     content.innerHTML = `
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
         <button class="btn-sm primary" onclick="triggerPhotoUpload()">📷 Upload Photos</button>
       </div>
-      ${!photos.length ? `
+      <div id="photoGridContainer"></div>`;
+
+    const container = document.getElementById('photoGridContainer');
+    if (!container) return;
+
+    if (!photos.length) {
+      container.innerHTML = `
         <div class="photo-upload-zone" onclick="triggerPhotoUpload()">
           <div style="font-size:40px;margin-bottom:10px">📸</div>
           <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Add travel photos</div>
           <div style="font-size:12px;color:var(--text3)">Click to upload from your device</div>
-        </div>` :
-        Object.entries(grouped).map(([tripName, tphotos]) => `
-          <div style="margin-bottom:20px">
-            <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">${tripName}</div>
-            <div class="photo-grid">
-              ${tphotos.map((p, idx) => `
-                <div class="photo-item" onclick="openLightbox(${JSON.stringify(tphotos).replace(/"/g,'&quot;')}, ${idx})">
-                  <img src="${p.dataUrl}" loading="lazy">
-                  <div class="photo-overlay">
-                    <button onclick="event.stopPropagation();deletePhoto('${p.id}')" style="background:rgba(237,66,69,0.85);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px">🗑</button>
-                  </div>
-                </div>`).join('')}
-            </div>
-          </div>`).join('')
-      }`;
+        </div>`;
+      return;
+    }
+
+    // Group by trip name
+    const grouped = {};
+    photos.forEach(p => {
+      const k = p.tripName || 'Travel Photos';
+      if (!grouped[k]) grouped[k] = [];
+      grouped[k].push(p);
+    });
+
+    // Store photos globally for lightbox access
+    window._currentPhotos = photos;
+
+    for (const [tripName, tphotos] of Object.entries(grouped)) {
+      const section = document.createElement('div');
+      section.style.marginBottom = '20px';
+
+      const label = document.createElement('div');
+      label.style.cssText = 'font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px';
+      label.textContent = tripName;
+      section.appendChild(label);
+
+      const grid = document.createElement('div');
+      grid.className = 'photo-grid';
+
+      tphotos.forEach((photo, idx) => {
+        const allIdx = photos.findIndex(p => p.id === photo.id);
+
+        const item = document.createElement('div');
+        item.className = 'photo-item';
+        item.onclick = () => openLightbox(photos, allIdx);
+
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = photo.dataUrl; // Set src via DOM, not innerHTML
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'photo-overlay';
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.style.cssText = 'background:rgba(237,66,69,0.85);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px';
+        delBtn.onclick = (e) => { e.stopPropagation(); deletePhoto(photo.id); };
+
+        overlay.appendChild(delBtn);
+        item.appendChild(img);
+        item.appendChild(overlay);
+        grid.appendChild(item);
+      });
+
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
   }
 
   // ——— PASSPORT TAB ———
@@ -5738,6 +5929,19 @@ setTimeout(refreshHeroLiveData, 1500);
 
 <!-- ═══ PLACE DETAIL MODAL ═══ -->
 <!-- ═══ PROFILE EDIT MODAL ═══ -->
+<!-- ═══ CROP MODAL ═══ -->
+<div id="cropModal">
+  <div style="color:#fff;font-size:14px;font-weight:600">Drag to position · Scroll to zoom</div>
+  <div id="cropViewport">
+    <img id="cropImg" draggable="false">
+  </div>
+  <input type="range" id="cropZoom" min="50" max="300" value="100" style="width:240px;accent-color:var(--accent)" oninput="cropUpdateZoom(this.value)">
+  <div style="display:flex;gap:10px">
+    <button onclick="closeCropModal()" style="background:#333;border:none;color:#fff;padding:10px 20px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">Cancel</button>
+    <button onclick="cropApply()" style="background:var(--accent);border:none;color:#fff;padding:10px 24px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700">Apply</button>
+  </div>
+</div>
+
 <!-- ═══ PROFILE COVER MODAL ═══ -->
 <div id="profileCoverModal" class="modal-overlay" onclick="if(event.target===this)closeModal('profileCoverModal')">
   <div class="modal" style="max-width:400px">
