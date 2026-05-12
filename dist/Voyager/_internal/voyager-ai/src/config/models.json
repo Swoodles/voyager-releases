@@ -1,0 +1,65 @@
+{
+  "_comment": "Multi-model routing. Swap providers without code changes.",
+
+  "providers": {
+    "claude": {
+      "cheap":   "claude-haiku-4-5-20251001",
+      "premium": "claude-sonnet-4-6",
+      "apiBase": "https://api.anthropic.com/v1/messages",
+      "headerKey": "x-api-key",
+      "versionHeader": "2023-06-01"
+    },
+    "openai": {
+      "cheap":   "gpt-4o-mini",
+      "premium": "gpt-4o",
+      "apiBase": "https://api.openai.com/v1/chat/completions"
+    },
+    "gemini": {
+      "cheap":   "gemini-1.5-flash",
+      "premium": "gemini-1.5-pro",
+      "apiBase": "https://generativelanguage.googleapis.com/v1beta/models"
+    }
+  },
+
+  "activeProvider": "claude",
+
+  "tierAssignments": {
+    "tier1": {
+      "useLLM": false,
+      "description": "No LLM — structured APIs + scoring engine only"
+    },
+    "tier2": {
+      "useLLM": true,
+      "modelClass": "cheap",
+      "maxTokens": 400,
+      "description": "Cheap model for reranking, filtering, short explanations"
+    },
+    "tier3": {
+      "useLLM": true,
+      "modelClass": "premium",
+      "maxTokens": 2000,
+      "description": "Premium model for itinerary generation, deep comparisons"
+    }
+  },
+
+  "costTracking": {
+    "claude": {
+      "haiku_input_per_1k":   0.00025,
+      "haiku_output_per_1k":  0.00125,
+      "sonnet_input_per_1k":  0.003,
+      "sonnet_output_per_1k": 0.015
+    },
+    "openai": {
+      "mini_input_per_1k":    0.00015,
+      "mini_output_per_1k":   0.0006,
+      "gpt4o_input_per_1k":   0.005,
+      "gpt4o_output_per_1k":  0.015
+    }
+  },
+
+  "budgetGuards": {
+    "max_cost_per_request_usd":   0.05,
+    "daily_cost_limit_usd":       50.00,
+    "fallback_to_tier1_on_limit": true
+  }
+}

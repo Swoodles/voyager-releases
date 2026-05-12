@@ -1,205 +1,241 @@
-"""
-updater.py — Voyager Auto-Updater
-==================================
-Handles silent background update checks, downloads, and installs.
-Discord/Notion-style: download in background, prompt on completion.
-"""
+# updater.py
+# Auto-update Voyager from GitHub Releases.
+# Replaces the existing updater.py.
+#
+# Flow:
+#   1. Read current version from version.json
+#   2. Call GitHub Releases API to find latest release
+#   3. If newer → download zip → extract (skipping .env / node_modules / cache)
+#   4. Restart app
+#
+# Set GITHUB_REPO below to your actual "owner/repo" string.
 
-import os, sys, json, logging, threading, hashlib, subprocess, time
+import os
+import sys
+import json
+import shutil
+import zipfile
+import logging
+import tempfile
+import threading
+import subprocess
+import urllib.request
+import urllib.error
 from pathlib import Path
-from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
 
-log = logging.getLogger("voyager.updater")
+logger = logging.getLogger(__name__)
 
-# ── Paths ──────────────────────────────────────────────────────────
-_DATA    = Path(os.environ.get("LOCALAPPDATA", os.environ.get("TEMP", "."))) / "Voyager"
-_UPD_DIR = _DATA / "updates"
-_UPD_DIR.mkdir(parents=True, exist_ok=True)
+# ── Configuration — CHANGE THIS ───────────────────────────────────────────────
+GITHUB_REPO     = "YOUR_USERNAME/voyager"          # e.g. "jsmith/voyager"
+VERSION_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.json")
+RELEASES_API    = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+REQUEST_TIMEOUT = 15   # seconds
 
-# ── Constants ──────────────────────────────────────────────────────
-_TIMEOUT     = 10   # seconds for network requests
-_CHUNK       = 65536
+# Files / dirs to NEVER overwrite during an update
+SKIP_PATHS = {
+    ".env",
+    "node_modules",
+    "__pycache__",
+    "version.json",   # updated separately after extraction
+    ".git",
+}
 
 
-def _ver_tuple(v: str):
-    """'1.2.3' → (1, 2, 3)  — safe for comparison."""
+# ── Version helpers ───────────────────────────────────────────────────────────
+
+def read_local_version() -> tuple[int, int, int]:
+    """Return (major, minor, patch) from version.json, defaulting to (0,0,0)."""
     try:
-        return tuple(int(x) for x in str(v).strip().split("."))
+        with open(VERSION_FILE) as f:
+            data = json.load(f)
+        v = data.get("version", "0.0.0")
+        return tuple(int(x) for x in v.split(".")[:3])
     except Exception:
         return (0, 0, 0)
 
 
-class UpdateInfo:
-    """Holds metadata about an available update."""
-    def __init__(self, data: dict):
-        self.version      = data.get("version", "0.0.0")
-        self.download_url = data.get("download_url", "")
-        self.release_notes = data.get("release_notes", "")
-        self.installer_path: Path | None = None
-        self.ready        = False   # True when download complete
-        self.progress     = 0       # 0-100
+def parse_version(tag: str) -> tuple[int, int, int]:
+    """Parse a GitHub tag like 'v1.2.3' or '1.2.3' into (1, 2, 3)."""
+    clean = tag.lstrip("v")
+    parts = clean.split(".")
+    try:
+        return tuple(int(x) for x in parts[:3])
+    except ValueError:
+        return (0, 0, 0)
 
 
-class Updater:
+# ── GitHub API ────────────────────────────────────────────────────────────────
+
+def fetch_latest_release() -> dict | None:
+    """Return the latest GitHub release dict or None on failure."""
+    req = urllib.request.Request(
+        RELEASES_API,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "VoyagerUpdater/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        logger.warning(f"[updater] Could not fetch release info: {e}")
+        return None
+
+
+def find_zip_asset(release: dict) -> str | None:
+    """Return the download URL for the first .zip asset in the release."""
+    for asset in release.get("assets", []):
+        if asset["name"].endswith(".zip"):
+            return asset["browser_download_url"]
+    return None
+
+
+# ── Download & Extract ────────────────────────────────────────────────────────
+
+def download_file(url: str, dest: str):
+    """Download url to dest with a simple progress log."""
+    logger.info(f"[updater] Downloading {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": "VoyagerUpdater/1.0"})
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        total = int(resp.headers.get("Content-Length", 0))
+        downloaded = 0
+        with open(dest, "wb") as f:
+            while chunk := resp.read(65536):
+                f.write(chunk)
+                downloaded += len(chunk)
+                if total:
+                    pct = downloaded * 100 // total
+                    if pct % 20 == 0:
+                        logger.info(f"[updater] {pct}% downloaded")
+
+
+def should_skip(path: str) -> bool:
+    parts = Path(path).parts
+    return any(p in SKIP_PATHS for p in parts)
+
+
+def extract_update(zip_path: str, target_dir: str):
     """
-    Usage:
-        u = Updater(current_version="1.2.0", update_url="https://...")
-        u.check_async(on_update_ready=callback)
+    Extract zip into target_dir, skipping protected paths.
+    The zip is expected to have a single top-level folder (GitHub default).
     """
+    with zipfile.ZipFile(zip_path) as zf:
+        members = zf.namelist()
+        # Strip the top-level directory prefix that GitHub adds
+        prefix = members[0].split("/")[0] + "/" if "/" in members[0] else ""
 
-    def __init__(self, current_version: str, update_url: str):
-        self.current   = current_version
-        self.url       = update_url
-        self.info: UpdateInfo | None = None
-        self._lock     = threading.Lock()
-        self._thread: threading.Thread | None = None
-        self._on_ready = None
+        for member in members:
+            rel = member[len(prefix):]           # strip GitHub's "repo-tag/" prefix
+            if not rel or should_skip(rel):
+                continue
 
-    # ── Public API ─────────────────────────────────────────────────
+            dest = os.path.join(target_dir, rel)
 
-    def check_async(self, on_update_ready=None):
-        """
-        Start background update check.
-        on_update_ready(info: UpdateInfo) called when download completes.
-        """
-        self._on_ready = on_update_ready
-        self._thread = threading.Thread(target=self._run, daemon=True, name="updater")
-        self._thread.start()
+            if member.endswith("/"):             # directory
+                os.makedirs(dest, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with zf.open(member) as src, open(dest, "wb") as out:
+                    shutil.copyfileobj(src, out)
 
-    def install_and_restart(self):
-        """
-        Close the app and silently run the downloaded installer.
-        Call this when the user accepts the update.
-        """
-        if not self.info or not self.info.ready or not self.info.installer_path:
-            log.error("install_and_restart called but update not ready")
-            return
-        path = str(self.info.installer_path)
-        log.info("Launching installer: %s", path)
+    logger.info("[updater] Extraction complete")
+
+
+def write_version(version_str: str):
+    with open(VERSION_FILE, "w") as f:
+        json.dump({"version": version_str}, f, indent=2)
+
+
+# ── Restart ───────────────────────────────────────────────────────────────────
+
+def restart_app():
+    """Re-launch this process and exit the current one."""
+    logger.info("[updater] Restarting app...")
+    args = [sys.executable] + sys.argv
+    if sys.platform == "win32":
+        subprocess.Popen(args, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        os.execv(sys.executable, args)
+    sys.exit(0)
+
+
+# ── Main public API ───────────────────────────────────────────────────────────
+
+def check_and_update(auto_restart: bool = True, on_progress=None) -> bool:
+    """
+    Check for an update and apply it if one is available.
+
+    :param auto_restart:  Restart the app automatically after updating.
+    :param on_progress:   Optional callable(str) for UI status messages.
+    :returns: True if an update was applied.
+    """
+    def _notify(msg):
+        logger.info(msg)
+        if on_progress:
+            on_progress(msg)
+
+    local_version = read_local_version()
+    _notify(f"[updater] Current version: {'.'.join(map(str, local_version))}")
+
+    release = fetch_latest_release()
+    if not release:
+        _notify("[updater] Could not reach GitHub — skipping update check")
+        return False
+
+    tag            = release.get("tag_name", "")
+    latest_version = parse_version(tag)
+
+    if latest_version <= local_version:
+        _notify(f"[updater] Already up to date ({tag})")
+        return False
+
+    _notify(f"[updater] New version available: {tag} — updating...")
+
+    zip_url = find_zip_asset(release)
+    if not zip_url:
+        _notify("[updater] No zip asset found in release — skipping")
+        return False
+
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        zip_path = os.path.join(tmp, "update.zip")
         try:
-            # /SILENT     — no wizard, just progress bar
-            # /SUPPRESSMSGBOXES — no popups
-            # /NORESTART  — don't reboot windows
-            subprocess.Popen(
-                [path, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                close_fds=True,
-            )
+            download_file(zip_url, zip_path)
         except Exception as e:
-            log.exception("Failed to launch installer: %s", e)
-            return
-        # Give installer a moment to start, then exit
-        time.sleep(0.5)
-        sys.exit(0)
+            _notify(f"[updater] Download failed: {e}")
+            return False
 
-    @property
-    def is_ready(self):
-        return self.info is not None and self.info.ready
-
-    # ── Internal ───────────────────────────────────────────────────
-
-    def _run(self):
         try:
-            info = self._check()
-            if info is None:
-                log.info("No update available (current=%s)", self.current)
-                return
-            log.info("Update available: %s → %s", self.current, info.version)
-            with self._lock:
-                self.info = info
-            self._download(info)
-        except Exception:
-            log.exception("Updater background thread error")
-
-    def _check(self) -> "UpdateInfo | None":
-        """Fetch version.json and return UpdateInfo if newer version found."""
-        log.info("Checking for updates at %s", self.url)
-        try:
-            req = Request(self.url, headers={"User-Agent": "Voyager-Updater/1.0", "Cache-Control": "no-cache"})
-            with urlopen(req, timeout=_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode())
-        except (URLError, HTTPError, json.JSONDecodeError) as e:
-            log.warning("Update check failed: %s", e)
-            return None
-
-        remote_ver = data.get("version", "0.0.0")
-        if _ver_tuple(remote_ver) <= _ver_tuple(self.current):
-            return None
-
-        # Check if we already downloaded this version
-        info = UpdateInfo(data)
-        candidate = _UPD_DIR / f"Voyager-Setup-{info.version}.exe"
-        if candidate.exists() and candidate.stat().st_size > 1_000_000:
-            log.info("Update %s already downloaded at %s", info.version, candidate)
-            info.installer_path = candidate
-            info.ready = True
-            info.progress = 100
-            if self._on_ready:
-                self._on_ready(info)
-            return info
-
-        return info
-
-    def _download(self, info: UpdateInfo):
-        """Stream download with progress tracking."""
-        url  = info.download_url
-        dest = _UPD_DIR / f"Voyager-Setup-{info.version}.exe"
-        tmp  = dest.with_suffix(".tmp")
-
-        log.info("Downloading update %s from %s", info.version, url)
-        try:
-            req = Request(url, headers={"User-Agent": "Voyager-Updater/1.0"})
-            with urlopen(req, timeout=60) as resp:
-                total = int(resp.headers.get("Content-Length", 0))
-                downloaded = 0
-                with open(tmp, "wb") as f:
-                    while True:
-                        chunk = resp.read(_CHUNK)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total > 0:
-                            info.progress = int(downloaded / total * 100)
-
+            extract_update(zip_path, app_dir)
         except Exception as e:
-            log.exception("Download failed: %s", e)
-            try:
-                tmp.unlink(missing_ok=True)
-            except Exception:
-                pass
-            return
+            _notify(f"[updater] Extraction failed: {e}")
+            return False
 
-        # Rename tmp → final
-        try:
-            if dest.exists():
-                dest.unlink()
-            tmp.rename(dest)
-        except Exception as e:
-            log.exception("Failed to finalize download: %s", e)
-            return
+    # Write the new version AFTER successful extraction
+    write_version(tag.lstrip("v"))
+    _notify(f"[updater] Updated to {tag} ✓")
 
-        log.info("Download complete: %s (%d bytes)", dest, dest.stat().st_size)
-        info.installer_path = dest
-        info.ready = True
-        info.progress = 100
+    if auto_restart:
+        restart_app()
 
-        # Clean up old update files
-        self._cleanup_old(keep=dest)
+    return True
 
-        if self._on_ready:
-            try:
-                self._on_ready(info)
-            except Exception:
-                log.exception("on_update_ready callback error")
 
-    def _cleanup_old(self, keep: Path):
-        """Remove old downloaded installers to save disk space."""
-        try:
-            for f in _UPD_DIR.glob("Voyager-Setup-*.exe"):
-                if f != keep:
-                    f.unlink(missing_ok=True)
-                    log.info("Removed old update: %s", f.name)
-        except Exception:
-            pass
+def check_and_update_async(on_progress=None, on_complete=None):
+    """
+    Run the update check in a background thread so the UI stays responsive.
+    on_complete(updated: bool) is called when done.
+    """
+    def _run():
+        result = check_and_update(auto_restart=True, on_progress=on_progress)
+        if on_complete:
+            on_complete(result)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return t
+
+
+# ── CLI usage ─────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    check_and_update(auto_restart="--no-restart" not in sys.argv)

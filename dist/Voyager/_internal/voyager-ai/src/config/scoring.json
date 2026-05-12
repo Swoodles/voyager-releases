@@ -1,0 +1,92 @@
+{
+  "_comment": "All scoring weights are configurable here. Adjust without code changes.",
+
+  "global": {
+    "rating_weight":        0.30,
+    "volume_weight":        0.15,
+    "recency_weight":       0.15,
+    "authority_weight":     0.20,
+    "trend_weight":         0.10,
+    "local_source_weight":  0.10
+  },
+
+  "localTouristSplit": {
+    "local": {
+      "local_review_ratio_weight":  0.40,
+      "local_source_rating_weight": 0.35,
+      "social_local_weight":        0.15,
+      "english_density_penalty":    0.10
+    },
+    "tourist": {
+      "english_review_ratio_weight":  0.35,
+      "global_source_rating_weight":  0.30,
+      "accessibility_weight":         0.20,
+      "social_tourist_weight":        0.15
+    }
+  },
+
+  "authorityMultipliers": {
+    "michelin_3_star":   2.0,
+    "michelin_2_star":   1.7,
+    "michelin_1_star":   1.4,
+    "michelin_bib":      1.2,
+    "michelin_listed":   1.1,
+    "tabelog_gold":      1.35,
+    "tabelog_silver":    1.20,
+    "tabelog_bronze":    1.10,
+    "james_beard":       1.30,
+    "worlds_50_best":    1.50,
+    "zagat":             1.15,
+    "editorial_major":   1.20,
+    "editorial_minor":   1.10
+  },
+
+  "volumeScoring": {
+    "log_base":       10,
+    "max_bonus_pts":  10,
+    "min_reviews_for_full_score": 100
+  },
+
+  "recencyScoring": {
+    "days_for_full_score": 90,
+    "days_decay_half":     365,
+    "weight_recent_reviews": 0.7,
+    "weight_older_reviews":  0.3
+  },
+
+  "trendScoring": {
+    "trending_bonus_local":   3,
+    "trending_bonus_tourist": 5,
+    "momentum_threshold":     1.20
+  },
+
+  "lowSignalProtection": {
+    "min_reviews_threshold":  15,
+    "no_authority_score_cap": 72,
+    "low_data_confidence":    0.6
+  },
+
+  "michelinFloors": {
+    "michelin_3_star": 92,
+    "michelin_2_star": 88,
+    "michelin_1_star": 85,
+    "michelin_bib":    75,
+    "michelin_listed": 70
+  },
+
+  "regionalOverrides": {
+    "JP": {
+      "authority_weight":    0.28,
+      "local_source_weight": 0.15,
+      "authorityMultipliers": {
+        "tabelog_gold": 1.50
+      }
+    },
+    "FR": {
+      "authority_weight": 0.25,
+      "authorityMultipliers": {
+        "michelin_1_star": 1.50
+      }
+    }
+  }
+}

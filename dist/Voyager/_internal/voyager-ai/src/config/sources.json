@@ -1,0 +1,147 @@
+{
+  "_comment": "Geo-aware source routing config. Add regions/categories without touching code.",
+
+  "defaults": {
+    "all": ["google_places", "foursquare", "reddit", "trends"]
+  },
+
+  "regions": {
+    "JP": {
+      "label": "Japan",
+      "languages": ["ja"],
+      "restaurants": ["tabelog", "google_places", "gurunavi", "reddit", "trends"],
+      "cafes":       ["tabelog", "google_places", "reddit"],
+      "bars":        ["tabelog", "google_places", "reddit"],
+      "attractions": ["google_places", "foursquare", "opentripmap", "trends"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["tabelog", "google_places", "gurunavi", "reddit", "trends"]
+    },
+    "KR": {
+      "label": "South Korea",
+      "languages": ["ko"],
+      "restaurants": ["naver_place", "google_places", "kakao", "reddit"],
+      "cafes":       ["naver_place", "google_places", "kakao"],
+      "bars":        ["naver_place", "google_places"],
+      "attractions": ["google_places", "naver_place", "opentripmap"],
+      "hotels":      ["google_places", "naver_place"],
+      "all":         ["naver_place", "google_places", "kakao", "reddit"]
+    },
+    "CN": {
+      "label": "China",
+      "languages": ["zh"],
+      "restaurants": ["dianping", "google_places", "meituan"],
+      "cafes":       ["dianping", "google_places"],
+      "bars":        ["dianping", "google_places"],
+      "attractions": ["google_places", "dianping", "opentripmap"],
+      "hotels":      ["google_places", "dianping"],
+      "all":         ["dianping", "google_places", "meituan"]
+    },
+    "FR": {
+      "label": "France",
+      "languages": ["fr"],
+      "restaurants": ["thefork", "google_places", "yelp", "reddit"],
+      "cafes":       ["thefork", "google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare", "yelp"],
+      "attractions": ["google_places", "opentripmap", "foursquare"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["thefork", "google_places", "foursquare", "reddit"]
+    },
+    "IT": {
+      "label": "Italy",
+      "languages": ["it"],
+      "restaurants": ["thefork", "google_places", "yelp", "reddit"],
+      "cafes":       ["thefork", "google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare"],
+      "attractions": ["google_places", "opentripmap"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["thefork", "google_places", "foursquare", "reddit"]
+    },
+    "ES": {
+      "label": "Spain",
+      "languages": ["es"],
+      "restaurants": ["thefork", "google_places", "yelp", "reddit"],
+      "cafes":       ["thefork", "google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare", "yelp"],
+      "attractions": ["google_places", "opentripmap"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["thefork", "google_places", "foursquare", "reddit"]
+    },
+    "DE": {
+      "label": "Germany",
+      "languages": ["de"],
+      "restaurants": ["thefork", "google_places", "yelp", "reddit"],
+      "cafes":       ["google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare"],
+      "attractions": ["google_places", "opentripmap"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["thefork", "google_places", "foursquare", "reddit"]
+    },
+    "MX": {
+      "label": "Mexico",
+      "languages": ["es"],
+      "restaurants": ["google_places", "yelp", "foursquare", "reddit"],
+      "cafes":       ["google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare", "yelp"],
+      "attractions": ["google_places", "opentripmap", "foursquare"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["google_places", "yelp", "foursquare", "reddit"]
+    },
+    "TH": {
+      "label": "Thailand",
+      "languages": ["th"],
+      "restaurants": ["google_places", "foursquare", "yelp", "reddit"],
+      "cafes":       ["google_places", "foursquare"],
+      "attractions": ["google_places", "opentripmap"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["google_places", "foursquare", "reddit"]
+    },
+    "GB": {
+      "label": "United Kingdom",
+      "languages": ["en"],
+      "restaurants": ["google_places", "yelp", "thefork", "foursquare", "reddit"],
+      "cafes":       ["google_places", "foursquare", "yelp"],
+      "bars":        ["google_places", "foursquare", "yelp"],
+      "attractions": ["google_places", "opentripmap", "foursquare"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["google_places", "yelp", "foursquare", "reddit"]
+    },
+    "US": {
+      "label": "United States",
+      "languages": ["en"],
+      "restaurants": ["google_places", "yelp", "foursquare", "reddit", "trends"],
+      "cafes":       ["google_places", "yelp", "foursquare"],
+      "bars":        ["google_places", "yelp", "foursquare"],
+      "attractions": ["google_places", "foursquare", "opentripmap", "trends"],
+      "hotels":      ["google_places", "foursquare"],
+      "events":      ["ticketmaster", "google_places"],
+      "all":         ["google_places", "yelp", "foursquare", "reddit", "trends"]
+    },
+    "AU": {
+      "label": "Australia",
+      "languages": ["en"],
+      "restaurants": ["google_places", "yelp", "foursquare", "reddit"],
+      "cafes":       ["google_places", "foursquare"],
+      "bars":        ["google_places", "foursquare"],
+      "attractions": ["google_places", "opentripmap"],
+      "hotels":      ["google_places", "foursquare"],
+      "all":         ["google_places", "yelp", "foursquare", "reddit"]
+    }
+  },
+
+  "sourceMetadata": {
+    "tabelog":       { "authority": 0.92, "localSignal": 0.95, "touristSignal": 0.15 },
+    "gurunavi":      { "authority": 0.80, "localSignal": 0.90, "touristSignal": 0.20 },
+    "naver_place":   { "authority": 0.88, "localSignal": 0.93, "touristSignal": 0.12 },
+    "kakao":         { "authority": 0.82, "localSignal": 0.90, "touristSignal": 0.15 },
+    "dianping":      { "authority": 0.88, "localSignal": 0.92, "touristSignal": 0.10 },
+    "meituan":       { "authority": 0.80, "localSignal": 0.88, "touristSignal": 0.12 },
+    "thefork":       { "authority": 0.78, "localSignal": 0.72, "touristSignal": 0.65 },
+    "google_places": { "authority": 0.75, "localSignal": 0.55, "touristSignal": 0.80 },
+    "yelp":          { "authority": 0.72, "localSignal": 0.60, "touristSignal": 0.78 },
+    "foursquare":    { "authority": 0.68, "localSignal": 0.50, "touristSignal": 0.75 },
+    "opentripmap":   { "authority": 0.65, "localSignal": 0.40, "touristSignal": 0.70 },
+    "reddit":        { "authority": 0.60, "localSignal": 0.65, "touristSignal": 0.55 },
+    "trends":        { "authority": 0.50, "localSignal": 0.60, "touristSignal": 0.60 },
+    "ticketmaster":  { "authority": 0.85, "localSignal": 0.50, "touristSignal": 0.80 }
+  }
+}

@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voyager — Developer Console</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    .topbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+    .topbar-logo { font-size: 20px; font-weight: 800; color: #58a6ff; }
+    .topbar-sub { font-size: 12px; color: #8b949e; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #f85149; margin-left: auto; flex-shrink: 0; }
+    .conn-dot.connected { background: #3fb950; }
+    .conn-label { font-size: 12px; color: #8b949e; }
+
+    .layout { display: flex; min-height: calc(100vh - 53px); }
+    .sidebar { width: 200px; background: #161b22; border-right: 1px solid #30363d; padding: 16px 0; flex-shrink: 0; }
+    .nav-item { padding: 9px 20px; font-size: 13px; color: #8b949e; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; border-left: 3px solid transparent; }
+    .nav-item:hover { background: #21262d; color: #e6edf3; }
+    .nav-item.active { color: #58a6ff; background: rgba(88,166,255,0.08); border-left-color: #58a6ff; }
+
+    .main { flex: 1; padding: 24px; max-width: 900px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .card-title { font-size: 12px; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+    .card-danger { border-color: rgba(248,81,73,0.4); }
+    .card-danger .card-title { color: #f85149; }
+
+    label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 5px; margin-top: 10px; }
+    label:first-child { margin-top: 0; }
+    input, select, textarea { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 8px 11px; font-size: 13px; font-family: monospace; outline: none; transition: border-color 0.15s; }
+    input:focus, select:focus { border-color: #58a6ff; }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .btn { padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-green  { background: #238636; color: #fff; }
+    .btn-blue   { background: #1f6feb; color: #fff; }
+    .btn-gray   { background: #21262d; border: 1px solid #30363d; color: #e6edf3; }
+    .btn-red    { background: transparent; border: 1px solid #f85149; color: #f85149; }
+    .btn-row    { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .input-row  { display: flex; gap: 8px; align-items: flex-end; }
+    .input-row input { flex: 1; }
+
+    .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table th { text-align: left; color: #8b949e; padding: 6px 10px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    .table td { padding: 8px 10px; border-bottom: 1px solid #21262d; color: #e6edf3; font-family: monospace; }
+    .table tr:hover td { background: #21262d; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+    .pill-green { background: rgba(63,185,80,0.2); color: #3fb950; }
+    .pill-red   { background: rgba(248,81,73,0.2); color: #f85149; }
+
+    .stat-row { display: flex; gap: 12px; margin-bottom: 20px; }
+    .stat-box { flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; }
+    .stat-num { font-size: 24px; font-weight: 800; color: #e6edf3; }
+    .stat-label { font-size: 11px; color: #8b949e; margin-top: 3px; }
+
+    .log { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: #8b949e; }
+    .log .ok { color: #3fb950; }
+    .log .err { color: #f85149; }
+    .log .info { color: #58a6ff; }
+
+    .connect-screen { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 53px); }
+    .connect-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 32px; width: min(460px, 94vw); }
+    .connect-logo { font-size: 32px; text-align: center; margin-bottom: 8px; }
+    .connect-title { font-size: 18px; font-weight: 700; color: #e6edf3; text-align: center; margin-bottom: 6px; }
+    .connect-sub { font-size: 12px; color: #8b949e; text-align: center; margin-bottom: 24px; }
+    .connect-err { font-size: 12px; color: #f85149; min-height: 16px; margin-top: 8px; }
+
+    .badge-online { display: inline-block; padding: 2px 8px; background: rgba(63,185,80,0.15); color: #3fb950; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- Connect screen shown until Supabase is ready -->
+<div id="connectScreen" class="connect-screen">
+  <div class="connect-box">
+    <div class="connect-logo">⚙️</div>
+    <div class="connect-title">Voyager Dev Console</div>
+    <div class="connect-sub">Enter your Supabase credentials to connect</div>
+    <label>Supabase Project URL</label>
+    <input type="text" id="csUrl" placeholder="https://xxxx.supabase.co" value="https://mqjoibfbortewxlydpfh.supabase.co">
+    <label>Supabase Service Role Key <span style="color:#f85149">(secret — never put this in the app)</span></label>
+    <input type="password" id="csKey" placeholder="eyJ...service_role key...">
+    <label>Admin Password (set below on first use)</label>
+    <input type="password" id="csPassword" placeholder="Your local admin password" onkeydown="if(event.key==='Enter')connectAdmin()">
+    <div class="connect-err" id="csErr"></div>
+    <div class="btn-row">
+      <button class="btn btn-blue" style="flex:1;padding:10px" onclick="connectAdmin()">Connect</button>
+    </div>
+    <div style="font-size:10px;color:#8b949e;margin-top:16px;line-height:1.5">
+      This file stays on your machine only. Never ship it with the app installer.<br>
+      The service role key gives full database access — treat it like a password.
+    </div>
+  </div>
+</div>
+
+<!-- Main app (hidden until connected) -->
+<div id="mainApp" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">✦ Voyager</div>
+    <div class="topbar-sub">Developer Console</div>
+    <div id="connDot" class="conn-dot connected" style="margin-left:auto"></div>
+    <div class="conn-label" id="connLabel">Connected</div>
+    <button class="btn btn-gray" style="margin-left:12px;font-size:11px" onclick="disconnect()">Disconnect</button>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="nav-item active" onclick="showPage('dashboard', this)">📊 Dashboard</div>
+      <div class="nav-item" onclick="showPage('users', this)">👥 Users</div>
+      <div class="nav-item" onclick="showPage('apikeys', this)">🔑 API Keys</div>
+      <div class="nav-item" onclick="showPage('trips', this)">🗺️ Shared Trips</div>
+      <div class="nav-item" onclick="showPage('logs', this)">📋 Activity Log</div>
+      <div style="margin:8px 20px 4px;font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:.5px;font-weight:700">AI Engine</div>
+      <div class="nav-item" onclick="showPage('ai-backend', this); checkAIHealth()">🤖 AI Backend</div>
+      <div class="nav-item" onclick="showPage('ai-scoring', this)">⚙️ Scoring Config</div>
+      <div class="nav-item" onclick="showPage('ai-search', this)">🔍 Test Search</div>
+      <div class="nav-item" onclick="showPage('danger', this)">⚠ Danger Zone</div>
+    </div>
+    <div class="main">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="page active">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-num" id="statTotalUsers">—</div><div class="stat-label">Total Users</div></div>
+          <div class="stat-box"><div class="stat-num" id="statTotalTrips">—</div><div class="stat-label">Shared Trips</div></div>
+          <div class="stat-box"><div class="stat-num" id="statTotalFriends">—</div><div class="stat-label">Friend Connections</div></div>
+          <div class="stat-box"><div class="stat-num" id="statNewToday">—</div><div class="stat-label">New Users Today</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🕐 Recent Signups</div>
+          <div id="recentSignups" class="log">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">📦 Recent Shared Trips</div>
+          <div id="recentShared" class="log">Loading...</div>
+        </div>
+      </div>
+
+      <!-- USERS -->
+      <div id="page-users" class="page">
+        <div class="card">
+          <div class="card-title">👥 All Users</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" id="userSearch" placeholder="Search by username or name..." oninput="filterUsers()" style="flex:1;font-family:inherit">
+            <button class="btn btn-gray" onclick="loadUsers()">↺ Refresh</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="table" id="usersTable">
+              <thead><tr><th>Username</th><th>Display Name</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="usersBody"><tr><td colspan="4" style="color:#8b949e;text-align:center;padding:20px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- API KEYS -->
+      <div id="page-apikeys" class="page">
+        <div class="card">
+          <div class="card-title">🗺️ Google Maps API Key</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px;line-height:1.6">This key is embedded in <code style="color:#58a6ff">app/src/index.html</code> as <code style="color:#58a6ff">GOOGLE_MAPS_KEY</code>. Update it here and copy the output to embed in your build.</p>
+          <label>Current Key (from index.html)</label>
+          <div class="input-row">
+            <input type="password" id="gmKeyInput" placeholder="AIza...">
+            <button class="btn btn-green" onclick="copyGmKeySnippet()">📋 Copy Snippet</button>
+          </div>
+          <div id="gmKeySnippet" style="display:none;margin-top:12px">
+            <label>Paste this line into index.html (replaces the GOOGLE_MAPS_KEY constant):</label>
+            <textarea id="gmKeyOutput" style="font-family:monospace;font-size:11px" rows="2" readonly></textarea>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">🔐 Supabase Credentials</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px">These are hardcoded in <code style="color:#58a6ff">index.html</code>. The anon/public key is safe to ship. Never ship the service role key.</p>
+          <label>Project URL</label>
+          <input type="text" id="sbUrlDisplay" readonly>
+          <label>Anon / Public Key (safe to ship in app)</label>
+          <input type="password" id="sbAnonDisplay" readonly>
+          <label>Service Role Key (this console only — never ship)</label>
+          <input type="password" id="sbServiceDisplay" value="" placeholder="Stored in this browser only">
+          <div class="btn-row">
+            <button class="btn btn-gray" onclick="toggleReveal('sbAnonDisplay')">👁 Reveal Anon Key</button>
+            <button class="btn btn-gray" onclick="toggleReveal('sbServiceDisplay')">👁 Reveal Service Key</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">🤖 Anthropic API Key</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px;line-height:1.6">The app makes Anthropic API calls from the client. Update the key in <code style="color:#58a6ff">index.html</code> wherever the API fetch is called. Never expose a secret key in client code — consider a proxy server for production.</p>
+          <label>Current Key in index.html</label>
+          <div class="input-row">
+            <input type="password" id="anthKeyInput" placeholder="sk-ant-...">
+            <button class="btn btn-green" onclick="copyAnthSnippet()">📋 Copy Snippet</button>
+          </div>
+          <div id="anthKeySnippet" style="display:none;margin-top:12px">
+            <textarea id="anthKeyOutput" style="font-family:monospace;font-size:11px" rows="2" readonly></textarea>
+          </div>
+        </div>
+
+        <!-- voyager-ai v2 backend keys -->
+        <div class="card" style="border-color:#1f3a5f">
+          <div class="card-title" style="color:#58a6ff">🧠 Voyager AI v2 Backend Keys <span style="font-size:10px;color:#484f58;font-weight:400;margin-left:8px">voyager-ai/.env</span></div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:16px;line-height:1.6">Save here then click <strong style="color:#e6edf3">Copy .env</strong> and paste into <code style="color:#58a6ff">voyager-ai/.env</code>. Only the keys for your chosen LLM provider + data sources are required.</p>
+
+          <div style="margin-bottom:14px;padding:10px 12px;background:#0d1117;border:1px solid #1f3a5f;border-radius:6px">
+            <label style="margin-top:0">LLM Provider</label>
+            <select id="aiProvider" style="font-family:monospace;margin-top:4px" onchange="refreshEnvPreview()">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="openai">OpenAI (GPT-4o)</option>
+              <option value="gemini">Gemini (Google)</option>
+            </select>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label>Anthropic API Key <span style="color:#3fb950">Claude</span></label>
+              <div class="input-row">
+                <input type="password" id="aiAnthKey" placeholder="sk-ant-..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiAnthKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>OpenAI API Key <span style="color:#f0883e">OpenAI</span></label>
+              <div class="input-row">
+                <input type="password" id="aiOpenAIKey" placeholder="sk-..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiOpenAIKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Gemini API Key <span style="color:#f0883e">Google</span></label>
+              <div class="input-row">
+                <input type="password" id="aiGeminiKey" placeholder="AIza..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiGeminiKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Google Places API Key <span style="color:#3fb950">★ Primary source</span></label>
+              <div class="input-row">
+                <input type="password" id="aiGPlacesKey" placeholder="AIza..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiGPlacesKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Foursquare API Key <span style="color:#3fb950">★ Primary source</span></label>
+              <div class="input-row">
+                <input type="password" id="aiFoursquareKey" placeholder="fsq3..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiFoursquareKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>SerpAPI Key <span style="color:#f0883e">Trends + Michelin</span></label>
+              <div class="input-row">
+                <input type="password" id="aiSerpKey" placeholder="..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiSerpKey')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Reddit Client ID <span style="color:#484f58">Optional</span></label>
+              <input type="password" id="aiRedditId" placeholder="..." oninput="refreshEnvPreview()">
+            </div>
+            <div>
+              <label>Reddit Secret <span style="color:#484f58">Optional</span></label>
+              <input type="password" id="aiRedditSecret" placeholder="..." oninput="refreshEnvPreview()">
+            </div>
+            <div>
+              <label>Apify Token <span style="color:#484f58">Regional platforms</span></label>
+              <div class="input-row">
+                <input type="password" id="aiApifyToken" placeholder="apify_api_..." oninput="refreshEnvPreview()">
+                <button class="btn btn-gray" style="white-space:nowrap;font-size:11px;padding:7px 10px" onclick="toggleReveal('aiApifyToken')">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Redis URL <span style="color:#484f58">Cache (optional)</span></label>
+              <input type="text" id="aiRedisUrl" placeholder="redis://127.0.0.1:6379" oninput="refreshEnvPreview()" style="font-family:monospace;font-size:11px">
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:16px">
+            <button class="btn btn-green" onclick="saveAIKeys()">💾 Save</button>
+            <button class="btn btn-gray" onclick="copyEnvFile()">📋 Copy .env</button>
+            <button class="btn btn-gray" onclick="loadAIKeys()">↺ Restore</button>
+          </div>
+          <div id="aiKeysMsg" style="font-size:12px;margin-top:8px;min-height:16px;color:#3fb950"></div>
+          <div style="margin-top:14px;padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:6px">
+            <div style="font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">.env preview</div>
+            <pre id="envPreview" style="font-size:11px;color:#8b949e;font-family:monospace;white-space:pre-wrap;line-height:1.8">Fill in keys above to preview</pre>
+          </div>
+        </div>
+
+        <div class="card" style="border-color:#1f3a5f">
+          <div class="card-title" style="color:#58a6ff">🌐 AI Port Config</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px">Backend port — must match <code style="color:#58a6ff">VOYAGER_AI_PORT</code> in .env and <code style="color:#58a6ff">AI_PORT</code> in ai_bridge.py.</p>
+          <div class="input-row" style="max-width:260px">
+            <input type="text" id="aiPortInput" value="3747" style="font-family:monospace">
+            <button class="btn btn-blue" onclick="testAIPort()">Test</button>
+          </div>
+          <div id="aiPortMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+        </div>
+      </div>
+
+      <!-- AI BACKEND -->
+      <div id="page-ai-backend" class="page">
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-num" id="aiStatusNum" style="font-size:16px;line-height:1.3">—</div><div class="stat-label">Status</div></div>
+          <div class="stat-box"><div class="stat-num" id="aiUptimeNum">—</div><div class="stat-label">Uptime (s)</div></div>
+          <div class="stat-box"><div class="stat-num" id="aiPortNum">3747</div><div class="stat-label">Port</div></div>
+          <div class="stat-box"><div class="stat-num" id="aiVersionNum">—</div><div class="stat-label">Version</div></div>
+        </div>
+
+        <!-- Live metrics from /metrics endpoint -->
+        <div class="card" style="border-color:#1f3a5f">
+          <div class="card-title" style="color:#58a6ff">📊 Live Observability</div>
+          <div class="stat-row" style="margin-bottom:0">
+            <div class="stat-box"><div class="stat-num" id="met_cacheHit" style="color:#3fb950">—%</div><div class="stat-label">Cache Hit Rate</div></div>
+            <div class="stat-box"><div class="stat-num" id="met_dailyCost" style="color:#f0883e">$—</div><div class="stat-label">Daily LLM Cost</div></div>
+            <div class="stat-box"><div class="stat-num" id="met_latency">—ms</div><div class="stat-label">Avg Latency</div></div>
+            <div class="stat-box"><div class="stat-num" id="met_requests">—</div><div class="stat-label">Total Requests</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+            <div style="padding:10px;background:#0d1117;border-radius:6px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:var(--conn-color,#3fb950)" id="met_tier1">—</div>
+              <div style="font-size:10px;color:#8b949e;margin-top:2px">Tier 1 · No LLM</div>
+            </div>
+            <div style="padding:10px;background:#0d1117;border-radius:6px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#58a6ff" id="met_tier2">—</div>
+              <div style="font-size:10px;color:#8b949e;margin-top:2px">Tier 2 · AI Enhanced</div>
+            </div>
+            <div style="padding:10px;background:#0d1117;border-radius:6px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#a78bfa" id="met_tier3">—</div>
+              <div style="font-size:10px;color:#8b949e;margin-top:2px">Tier 3 · AI Planner</div>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-blue btn-sm" onclick="refreshMetrics()">↺ Refresh Metrics</button>
+            <span id="met_failures" style="font-size:11px;color:#8b949e;margin-left:8px"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🔌 Health Check</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:14px">Pings <code style="color:#58a6ff">http://127.0.0.1:3747/health</code> — backend must be running (started by launcher.py via ai_bridge.py).</p>
+          <div class="btn-row">
+            <button class="btn btn-blue" onclick="checkAIHealth()">↺ Check Now</button>
+            <button class="btn btn-gray" id="pollBtn" onclick="startHealthPoll()">▶ Poll every 10s</button>
+            <button class="btn btn-red" id="pollStopBtn" onclick="stopHealthPoll()" style="display:none">■ Stop</button>
+          </div>
+          <div class="log" id="healthLog" style="margin-top:14px;max-height:160px">Waiting for first check...</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📡 v2 Source Adapter Status</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:14px">v2 uses modular adapters. Sources without a key are skipped silently — they appear as stubs and return empty results.</p>
+          <table class="table">
+            <thead><tr><th>Source</th><th>Env Variable</th><th>Tier</th><th>Configured</th><th>Signal Type</th></tr></thead>
+            <tbody id="sourceStatusBody">
+              <tr><td colspan="5" style="color:#8b949e;text-align:center;padding:20px">Run health check first</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🌍 Geo Router — Query Test</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px">Tests the v2 <code style="color:#58a6ff">POST /search/classify</code> endpoint — shows tier, detected country, and which sources would be used.</p>
+          <div class="input-row">
+            <input type="text" id="geoTestInput" placeholder="best ramen in Tokyo" style="font-family:inherit" onkeydown="if(event.key==='Enter')testGeoRoute()">
+            <button class="btn btn-blue" onclick="testGeoRoute()">Classify</button>
+          </div>
+          <div class="log" id="geoLog" style="margin-top:12px;display:none"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🗄️ Cache</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:14px">Redis primary + in-memory fallback. Category-aware TTLs (attractions: 7d, restaurants: 24h, events: 2h). Clear during testing to force fresh API calls.</p>
+          <div class="btn-row">
+            <button class="btn btn-gray" onclick="checkCacheStats()">📊 Stats</button>
+            <button class="btn btn-red" onclick="clearAICache()">🗑 Clear All</button>
+          </div>
+          <div id="cacheResult" style="margin-top:10px;font-size:12px;color:#8b949e;min-height:16px"></div>
+        </div>
+      </div>
+
+      <!-- SCORING CONFIG -->
+      <div id="page-ai-scoring" class="page">
+        <div class="card">
+          <div class="card-title">⚖️ Default Scoring Weights</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:16px;line-height:1.6">Defaults applied when the user hasn't moved the Params sliders. Must sum to 1.0.</p>
+          <div id="weightSliders"></div>
+          <div style="margin-top:8px;padding:8px 12px;background:#0d1117;border-radius:6px;font-size:12px;color:#8b949e;font-family:monospace" id="weightsTotal">Total: 1.00 ✓</div>
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn-green" onclick="saveWeights()">💾 Save</button>
+            <button class="btn btn-gray" onclick="resetWeights()">↺ Reset Defaults</button>
+          </div>
+          <div id="weightsMsg" style="font-size:12px;margin-top:8px;min-height:16px;color:#3fb950"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">⭐ Michelin Floor Scores</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:16px">If Claude returns a score below these floors for a Michelin-listed place, the floor is applied automatically.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label>Three Stars ⭐⭐⭐</label><input type="number" id="floor3star" value="92" min="50" max="100" style="font-family:monospace"></div>
+            <div><label>Two Stars ⭐⭐</label><input type="number" id="floor2star" value="88" min="50" max="100" style="font-family:monospace"></div>
+            <div><label>One Star ⭐</label><input type="number" id="floor1star" value="85" min="50" max="100" style="font-family:monospace"></div>
+            <div><label>Bib Gourmand 🍽</label><input type="number" id="floorBib" value="75" min="50" max="100" style="font-family:monospace"></div>
+          </div>
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn-green" onclick="saveMichelinFloors()">💾 Save</button>
+          </div>
+          <div id="michelinMsg" style="font-size:12px;margin-top:8px;min-height:16px;color:#3fb950"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📈 Bonus &amp; Cap Settings</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label>Trending Bonus — Local (pts)</label><input type="number" id="trendBonusLocal" value="3" min="0" max="20" style="font-family:monospace"></div>
+            <div><label>Trending Bonus — Tourist (pts)</label><input type="number" id="trendBonusTourist" value="5" min="0" max="20" style="font-family:monospace"></div>
+            <div><label>Volume Bonus Max (pts)</label><input type="number" id="volBonusMax" value="8" min="0" max="20" style="font-family:monospace"></div>
+            <div><label>Low-Signal Min Reviews</label><input type="number" id="lowSigMin" value="20" min="0" max="200" style="font-family:monospace"></div>
+            <div><label>Low-Signal Score Cap</label><input type="number" id="lowSigCap" value="72" min="0" max="100" style="font-family:monospace"></div>
+          </div>
+          <div class="btn-row" style="margin-top:14px">
+            <button class="btn btn-green" onclick="saveBonusSettings()">💾 Save</button>
+            <button class="btn btn-gray" onclick="resetBonusSettings()">↺ Reset</button>
+          </div>
+          <div id="bonusMsg" style="font-size:12px;margin-top:8px;min-height:16px;color:#3fb950"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🚀 Priority Presets <span style="font-size:10px;color:#484f58;font-weight:400">(read-only reference)</span></div>
+          <table class="table">
+            <thead><tr><th>Priority</th><th>Rating</th><th>Reviews</th><th>Value</th><th>Features</th></tr></thead>
+            <tbody>
+              <tr><td style="color:#e6edf3">Balanced</td><td>40%</td><td>20%</td><td>25%</td><td>15%</td></tr>
+              <tr><td style="color:#e6edf3">Quality</td><td>60%</td><td>15%</td><td>10%</td><td>15%</td></tr>
+              <tr><td style="color:#e6edf3">Budget</td><td>25%</td><td>20%</td><td>45%</td><td>10%</td></tr>
+              <tr><td style="color:#e6edf3">Trending</td><td>30%</td><td>15%</td><td>15%</td><td>40%</td></tr>
+              <tr><td style="color:#e6edf3">Local Pick</td><td>45%</td><td>25%</td><td>20%</td><td>10%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TEST SEARCH -->
+      <div id="page-ai-search" class="page">
+
+        <!-- Query Classifier preview (free, no API cost) -->
+        <div class="card" style="border-color:#1f3a5f">
+          <div class="card-title" style="color:#58a6ff">🧪 Query Classifier Preview <span style="font-size:10px;color:#484f58;font-weight:400">— free, no LLM used</span></div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px">Shows which tier and geo would be selected before committing API credits. Calls <code style="color:#58a6ff">POST /search/classify</code>.</p>
+          <div class="input-row">
+            <input type="text" id="classifyQuery" placeholder="quiet authentic ramen in Tokyo under $20" style="font-family:inherit" onkeydown="if(event.key==='Enter')runClassify()">
+            <button class="btn btn-blue" onclick="runClassify()">Classify</button>
+          </div>
+          <div id="classifyResult" style="display:none;margin-top:12px">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+              <div style="padding:8px;background:#0d1117;border-radius:6px;text-align:center">
+                <div id="cl_tier" style="font-size:18px;font-weight:700;color:#58a6ff">—</div>
+                <div style="font-size:9px;color:#8b949e;margin-top:2px">Tier</div>
+              </div>
+              <div style="padding:8px;background:#0d1117;border-radius:6px;text-align:center">
+                <div id="cl_country" style="font-size:13px;font-weight:700;color:#e6edf3">—</div>
+                <div style="font-size:9px;color:#8b949e;margin-top:2px">Country</div>
+              </div>
+              <div style="padding:8px;background:#0d1117;border-radius:6px;text-align:center">
+                <div id="cl_category" style="font-size:13px;font-weight:700;color:#e6edf3">—</div>
+                <div style="font-size:9px;color:#8b949e;margin-top:2px">Category</div>
+              </div>
+              <div style="padding:8px;background:#0d1117;border-radius:6px;text-align:center">
+                <div id="cl_cost" style="font-size:13px;font-weight:700;color:#3fb950">—</div>
+                <div style="font-size:9px;color:#8b949e;margin-top:2px">Est. LLM Cost</div>
+              </div>
+            </div>
+            <div class="log" id="classifyLog" style="max-height:120px;font-size:11px"></div>
+          </div>
+        </div>
+
+        <!-- Full pipeline test -->
+        <div class="card">
+          <div class="card-title">🔍 Full Pipeline Test</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:16px;line-height:1.6">Runs geo detect → source fetch → scoring → optional AI enrichment. <strong style="color:#f0883e">Uses real API credits for Tier 2/3.</strong></p>
+          <label>Search Query</label>
+          <input type="text" id="testQuery" placeholder="best ramen in Tokyo" style="font-family:inherit;margin-bottom:12px" onkeydown="if(event.key==='Enter')runTestSearch()">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label>Priority</label>
+              <select id="testPriority" style="font-family:inherit">
+                <option>Balanced</option><option>Quality</option><option>Budget</option><option>Trending</option><option>Local Pick</option>
+              </select>
+            </div>
+            <div>
+              <label>Cache</label>
+              <select id="testNoCache" style="font-family:inherit">
+                <option value="false">Use cache</option><option value="true">Force fresh</option>
+              </select>
+            </div>
+            <div>
+              <label>IP Country Override</label>
+              <input type="text" id="testIpCountry" placeholder="JP, KR, FR…" style="font-family:monospace">
+            </div>
+          </div>
+          <div style="margin-bottom:16px">
+            <label>Weight Overrides (%)</label>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px">
+              <div><label style="margin-top:0">Rating</label><input type="number" id="tw_rating" value="40" min="0" max="100" style="font-family:monospace"></div>
+              <div><label style="margin-top:0">Reviews</label><input type="number" id="tw_reviews" value="20" min="0" max="100" style="font-family:monospace"></div>
+              <div><label style="margin-top:0">Value</label><input type="number" id="tw_value" value="25" min="0" max="100" style="font-family:monospace"></div>
+              <div><label style="margin-top:0">Features</label><input type="number" id="tw_features" value="15" min="0" max="100" style="font-family:monospace"></div>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-blue" id="testSearchBtn" onclick="runTestSearch()">▶ Run Pipeline</button>
+            <button class="btn btn-gray" onclick="clearTestResult()">✕ Clear</button>
+          </div>
+        </div>
+
+        <!-- v2 result panels -->
+        <div id="testResultWrap" style="display:none">
+
+          <!-- Tier + geo banner -->
+          <div id="res_tier_banner" style="padding:10px 14px;border-radius:8px;margin-bottom:4px;display:flex;align-items:center;gap:10px;font-size:12px"></div>
+
+          <!-- Score stats use top result from results[] -->
+          <div class="stat-row">
+            <div class="stat-box"><div class="stat-num" id="res_local_score">—</div><div class="stat-label">Local Score</div></div>
+            <div class="stat-box"><div class="stat-num" id="res_tourist_score">—</div><div class="stat-label">Tourist Score</div></div>
+            <div class="stat-box"><div class="stat-num" id="res_gap">—</div><div class="stat-label">Score Gap</div></div>
+            <div class="stat-box"><div class="stat-num" id="res_results_count" style="font-size:16px">—</div><div class="stat-label">Results</div></div>
+          </div>
+
+          <!-- Top result summary -->
+          <div class="card">
+            <div class="card-title">🥇 Top Result</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div>
+                <div style="font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Place</div>
+                <div id="res_place" style="font-size:14px;font-weight:600;color:#e6edf3">—</div>
+                <div id="res_oneline" style="font-size:12px;color:#8b949e;margin-top:4px">—</div>
+                <div id="res_snippet" style="font-size:11px;color:#58a6ff;margin-top:4px;font-style:italic"></div>
+                <div style="margin-top:10px" id="res_badges"></div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Geo Detected</div>
+                <div id="res_geo" style="font-size:12px;color:#8b949e;font-family:monospace">—</div>
+                <div style="margin-top:8px;font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.5px">Sources Used</div>
+                <div id="res_sources" style="font-size:11px;color:#8b949e;margin-top:3px;font-family:monospace">—</div>
+                <div style="margin-top:8px;font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.5px">Intent</div>
+                <div id="res_intent" style="font-size:11px;color:#8b949e;margin-top:3px">—</div>
+                <div style="margin-top:8px;font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.5px">Gap Explanation</div>
+                <div id="res_gap_explain" style="font-size:12px;color:#8b949e;margin-top:4px">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- All results list -->
+          <div class="card">
+            <div class="card-title">📋 All Results <span id="res_all_count" style="font-size:10px;color:#484f58;font-weight:400"></span></div>
+            <div id="res_all_list" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+
+          <!-- Itinerary panel (tier 3 only) -->
+          <div class="card" id="res_itinerary_card" style="display:none">
+            <div class="card-title" style="color:#a78bfa">🗺️ Generated Itinerary</div>
+            <div id="res_itinerary"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">📦 Raw JSON</div>
+            <div class="log" id="rawJsonOutput" style="max-height:340px;white-space:pre;overflow-x:auto;font-size:11px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📋 Test Log</div>
+          <div class="log" id="testLog" style="max-height:200px">Waiting for test run...</div>
+        </div>
+      </div>
+
+      <!-- SHARED TRIPS -->
+      <div id="page-trips" class="page">
+        <div class="card">
+          <div class="card-title">📦 Shared Trips</div>
+          <button class="btn btn-gray" onclick="loadSharedTrips()" style="margin-bottom:14px">↺ Refresh</button>
+          <div style="overflow-x:auto">
+            <table class="table">
+              <thead><tr><th>Trip Name</th><th>From</th><th>To</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="tripsBody"><tr><td colspan="5" style="color:#8b949e;text-align:center;padding:20px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY LOG -->
+      <div id="page-logs" class="page">
+        <div class="card">
+          <div class="card-title">📋 Activity Log</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:14px">Live feed of database changes via Supabase Realtime.</p>
+          <button class="btn btn-gray" onclick="clearLog()" style="margin-bottom:10px">Clear Log</button>
+          <div class="log" id="activityLog" style="max-height:400px">Listening for activity...</div>
+        </div>
+      </div>
+
+      <!-- DANGER ZONE -->
+      <div id="page-danger" class="page">
+        <div class="card card-danger">
+          <div class="card-title">⚠ Danger Zone</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:16px;line-height:1.6">These actions are irreversible. Make sure you know what you're doing.</p>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#0d1117;border-radius:6px;border:1px solid #30363d">
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:#e6edf3">Delete a specific user</div>
+                <div style="font-size:11px;color:#8b949e;margin-top:2px">Removes user record and all their data. Cannot be undone.</div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="text" id="deleteUserInput" placeholder="@username" style="width:140px">
+                <button class="btn btn-red" onclick="deleteUser()">Delete</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#0d1117;border-radius:6px;border:1px solid #30363d">
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:#e6edf3">Clear all shared trips</div>
+                <div style="font-size:11px;color:#8b949e;margin-top:2px">Deletes every shared trip record in the database.</div>
+              </div>
+              <button class="btn btn-red" onclick="clearAllSharedTrips()">Clear All</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🔧 Admin Password</div>
+          <p style="font-size:12px;color:#8b949e;margin-bottom:12px">Change the local password used to access this console.</p>
+          <label>New Password</label>
+          <input type="password" id="newAdminPw1" placeholder="New password">
+          <label>Confirm New Password</label>
+          <input type="password" id="newAdminPw2" placeholder="Confirm">
+          <div class="btn-row">
+            <button class="btn btn-green" onclick="changeAdminPassword()">Update Password</button>
+          </div>
+          <div id="pwChangeMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ——— CONFIG ———
+const DEFAULT_SUPABASE_URL = 'https://mqjoibfbortewxlydpfh.supabase.co';
+const ADMIN_PW_KEY = 'voy_admin_pw';
+const DEFAULT_ADMIN_PW = 'voyager-dev-2025'; // Change this on first launch
+
+let sb = null;       // Supabase client (with service role key)
+let sbUrl = '';
+let allUsers = [];
+
+// ——— CONNECT ———
+async function connectAdmin() {
+  const url = document.getElementById('csUrl').value.trim();
+  const key = document.getElementById('csKey').value.trim();
+  const pw  = document.getElementById('csPassword').value;
+  const err = document.getElementById('csErr');
+
+  // Check admin password
+  const storedPw = localStorage.getItem(ADMIN_PW_KEY) || DEFAULT_ADMIN_PW;
+  if (pw !== storedPw) { err.textContent = 'Incorrect admin password.'; return; }
+  if (!url || !key) { err.textContent = 'Enter Supabase URL and service role key.'; return; }
+  // Accept both old JWT format (eyJ...) and new sb_secret_ format
+  const looksLikeAnonKey = key.startsWith('sb_publishable_');
+  if (looksLikeAnonKey) {
+    err.textContent = 'Use the service_role key, not the anon/publishable key. Find it in Project Settings → API → service_role.';
+    return;
+  }
+
+  err.textContent = 'Connecting...';
+  try {
+    sb = window.supabase.createClient(url, key, { auth: { persistSession: false } });
+    sbUrl = url;
+    // Test connection
+    const { error } = await sb.from('voyager_users').select('id').limit(1);
+    if (error) throw error;
+
+    // Save service key to session storage (not localStorage — clears on tab close)
+    sessionStorage.setItem('voy_admin_sb_key', key);
+    sessionStorage.setItem('voy_admin_sb_url', url);
+
+    // Populate API key displays
+    document.getElementById('sbUrlDisplay').value = url;
+    document.getElementById('sbAnonDisplay').value = 'sb_publishable_INKqFo3YlL96PoAbM4Hu_w_KFDLMNGH';
+    document.getElementById('sbServiceDisplay').value = key;
+
+    document.getElementById('connectScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    await loadDashboard();
+    await loadUsers();
+    await loadSharedTrips();
+    startActivityListener();
+  } catch(e) {
+    err.textContent = 'Connection failed: ' + (e.message || e);
+    sb = null;
+  }
+}
+
+function disconnect() {
+  sb = null;
+  sessionStorage.clear();
+  document.getElementById('connectScreen').style.display = 'flex';
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('csKey').value = '';
+  document.getElementById('csErr').textContent = '';
+}
+
+// ——— NAV ———
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ——— DASHBOARD ———
+async function loadDashboard() {
+  const [u, t, f] = await Promise.all([
+    sb.from('voyager_users').select('id,display_name,username,created_at', { count: 'exact' }),
+    sb.from('voyager_shared_trips').select('id', { count: 'exact' }),
+    sb.from('voyager_friends').select('id', { count: 'exact' }),
+  ]);
+  document.getElementById('statTotalUsers').textContent = u.count ?? '—';
+  document.getElementById('statTotalTrips').textContent = t.count ?? '—';
+  document.getElementById('statTotalFriends').textContent = f.count ?? '—';
+
+  // New today
+  const today = new Date(); today.setHours(0,0,0,0);
+  const newToday = (u.data||[]).filter(u => new Date(u.created_at) >= today).length;
+  document.getElementById('statNewToday').textContent = newToday;
+
+  // Recent signups
+  const recent = (u.data||[]).sort((a,b) => new Date(b.created_at)-new Date(a.created_at)).slice(0,10);
+  document.getElementById('recentSignups').innerHTML = recent.map(u =>
+    `<span class="info">@${u.username}</span> — ${u.display_name||'?'} — <span style="color:#8b949e">${new Date(u.created_at).toLocaleString()}</span>`
+  ).join('\n') || 'No users yet.';
+
+  // Recent shared trips
+  const { data: trips } = await sb.from('voyager_shared_trips').select('trip_name,created_at').order('created_at', { ascending: false }).limit(8);
+  document.getElementById('recentShared').innerHTML = (trips||[]).map(t =>
+    `<span class="ok">${t.trip_name}</span> — <span style="color:#8b949e">${new Date(t.created_at).toLocaleString()}</span>`
+  ).join('\n') || 'No shared trips yet.';
+}
+
+// ——— USERS ———
+async function loadUsers() {
+  const { data, error } = await sb.from('voyager_users').select('id,username,display_name,avatar_emoji,created_at').order('created_at', { ascending: false });
+  if (error) { logActivity('err', 'Load users error: ' + error.message); return; }
+  allUsers = data || [];
+  renderUsers(allUsers);
+}
+
+function filterUsers() {
+  const q = document.getElementById('userSearch').value.toLowerCase();
+  renderUsers(allUsers.filter(u => u.username.includes(q) || (u.display_name||'').toLowerCase().includes(q)));
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('usersBody');
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td>${u.avatar_emoji||'✈️'} <strong style="color:#58a6ff">@${u.username}</strong></td>
+      <td>${u.display_name||'—'}</td>
+      <td style="color:#8b949e">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td>
+        <button class="btn btn-red" style="padding:3px 8px;font-size:10px" onclick="confirmDeleteUser('${u.id}','${u.username}')">Delete</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="4" style="color:#8b949e;text-align:center;padding:20px">No users found.</td></tr>`;
+}
+
+async function confirmDeleteUser(id, username) {
+  if (!confirm(`Delete @${username}? This removes their account permanently.`)) return;
+  const { error } = await sb.from('voyager_users').delete().eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  logActivity('ok', `Deleted user @${username}`);
+  await loadUsers();
+  await loadDashboard();
+}
+
+async function deleteUser() {
+  const handle = document.getElementById('deleteUserInput').value.trim().replace(/^@/, '');
+  if (!handle) { alert('Enter a username.'); return; }
+  const { data } = await sb.from('voyager_users').select('id').eq('username', handle).maybeSingle();
+  if (!data) { alert(`@${handle} not found.`); return; }
+  await confirmDeleteUser(data.id, handle);
+}
+
+// ——— SHARED TRIPS ———
+async function loadSharedTrips() {
+  const { data } = await sb.from('voyager_shared_trips')
+    .select('id,trip_name,from_user_id,to_user_id,created_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  const tbody = document.getElementById('tripsBody');
+  tbody.innerHTML = (data||[]).map(t => `
+    <tr>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.trip_name}</td>
+      <td style="color:#8b949e;font-size:10px">${t.from_user_id?.slice(0,8)}...</td>
+      <td style="color:#8b949e;font-size:10px">${t.to_user_id?.slice(0,8)}...</td>
+      <td style="color:#8b949e">${new Date(t.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-red" style="padding:3px 8px;font-size:10px" onclick="deleteTrip('${t.id}','${t.trip_name.replace(/'/g,"\\'")}')">Delete</button></td>
+    </tr>`).join('') || `<tr><td colspan="5" style="color:#8b949e;text-align:center;padding:20px">No shared trips.</td></tr>`;
+}
+
+async function deleteTrip(id, name) {
+  if (!confirm(`Delete shared trip "${name}"?`)) return;
+  await sb.from('voyager_shared_trips').delete().eq('id', id);
+  logActivity('ok', `Deleted shared trip: ${name}`);
+  await loadSharedTrips();
+}
+
+async function clearAllSharedTrips() {
+  if (!confirm('Delete ALL shared trips? This cannot be undone.')) return;
+  await sb.from('voyager_shared_trips').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  logActivity('err', 'Cleared all shared trips.');
+  await loadSharedTrips();
+  await loadDashboard();
+}
+
+// ——— API KEYS ———
+function copyGmKeySnippet() {
+  const key = document.getElementById('gmKeyInput').value.trim();
+  if (!key) { alert('Enter a Google Maps key first.'); return; }
+  const snippet = `const GOOGLE_MAPS_KEY = localStorage.getItem('voy_google_maps_key') || '${key}';`;
+  document.getElementById('gmKeyOutput').value = snippet;
+  document.getElementById('gmKeySnippet').style.display = 'block';
+  navigator.clipboard?.writeText(snippet);
+  alert('Snippet copied! Paste it into index.html replacing the GOOGLE_MAPS_KEY line.');
+}
+
+function copyAnthSnippet() {
+  const key = document.getElementById('anthKeyInput').value.trim();
+  if (!key) { alert('Enter an Anthropic key first.'); return; }
+  document.getElementById('anthKeyOutput').value = `// Anthropic key: ${key.slice(0,8)}... (search index.html for anthropic.com/v1/messages and add header: {'x-api-key':'${key}'})`;
+  document.getElementById('anthKeySnippet').style.display = 'block';
+}
+
+function toggleReveal(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ——— ACTIVITY LOG ———
+function logActivity(type, msg) {
+  const log = document.getElementById('activityLog');
+  const time = new Date().toLocaleTimeString();
+  log.innerHTML += `\n<span class="${type}">[${time}] ${msg}</span>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('activityLog').innerHTML = 'Log cleared.';
+}
+
+function startActivityListener() {
+  sb.channel('admin-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'voyager_users' }, p => {
+      logActivity('info', `Users table: ${p.eventType} — ${p.new?.username || p.old?.username || ''}`);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'voyager_friends' }, p => {
+      logActivity('info', `Friends: ${p.eventType} — status: ${p.new?.status || ''}`);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'voyager_shared_trips' }, p => {
+      logActivity('ok', `Shared trip: ${p.eventType} — ${p.new?.trip_name || ''}`);
+    })
+    .subscribe();
+  logActivity('ok', 'Realtime listener active.');
+}
+
+// ——— ADMIN PASSWORD ———
+function changeAdminPassword() {
+  const p1 = document.getElementById('newAdminPw1').value;
+  const p2 = document.getElementById('newAdminPw2').value;
+  const msg = document.getElementById('pwChangeMsg');
+  if (!p1 || p1.length < 6) { msg.style.color='#f85149'; msg.textContent = 'Password must be at least 6 characters.'; return; }
+  if (p1 !== p2) { msg.style.color='#f85149'; msg.textContent = 'Passwords do not match.'; return; }
+  localStorage.setItem(ADMIN_PW_KEY, p1);
+  msg.style.color = '#3fb950';
+  msg.textContent = '✓ Password updated.';
+  document.getElementById('newAdminPw1').value = '';
+  document.getElementById('newAdminPw2').value = '';
+}
+
+// Pre-fill URL from default
+document.getElementById('csUrl').value = DEFAULT_SUPABASE_URL;
+
+// ════════════════════════════════════════════════════════════════
+// AI BACKEND v2
+// ════════════════════════════════════════════════════════════════
+const AI_BASE = () => `http://127.0.0.1:${document.getElementById('aiPortInput')?.value || 3747}`;
+let healthPollTimer = null;
+
+// v2 source registry — matches src/sources/index.js ADAPTER_REGISTRY
+const V2_SOURCES = [
+  { id:'google_places', env:'GOOGLE_PLACES_API_KEY', tier:'Primary',   signal:'Local + Tourist', key:null },
+  { id:'foursquare',   env:'FOURSQUARE_API_KEY',    tier:'Primary',   signal:'Tourist',         key:null },
+  { id:'reddit',       env:'REDDIT_CLIENT_ID',       tier:'Signal',    signal:'Community buzz',  key:null },
+  { id:'trends',       env:'SERP_API_KEY',           tier:'Signal',    signal:'Trend momentum',  key:null },
+  { id:'tabelog',      env:'APIFY_TOKEN',            tier:'Regional',  signal:'Local JP',        key:null },
+  { id:'naver_place',  env:'APIFY_TOKEN',            tier:'Regional',  signal:'Local KR',        key:null },
+  { id:'dianping',     env:'APIFY_TOKEN',            tier:'Regional',  signal:'Local CN',        key:null },
+  { id:'thefork',      env:'APIFY_TOKEN',            tier:'Regional',  signal:'Local EU',        key:null },
+  { id:'opentripmap',  env:'—',                      tier:'Free',      signal:'Attractions',     key:null },
+  { id:'ticketmaster', env:'—',                      tier:'Free',      signal:'Events',          key:null },
+];
+
+async function checkAIHealth() {
+  const log = document.getElementById('healthLog');
+  const time = new Date().toLocaleTimeString();
+  log.innerHTML += `\n<span class="info">[${time}] Checking ${AI_BASE()}/health...</span>`;
+  log.scrollTop = log.scrollHeight;
+  try {
+    const res  = await fetch(`${AI_BASE()}/health`, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json();
+    document.getElementById('aiStatusNum').textContent  = '● Online';
+    document.getElementById('aiStatusNum').style.color  = '#3fb950';
+    document.getElementById('aiUptimeNum').textContent  = Math.round(data.uptime || 0);
+    document.getElementById('aiVersionNum').textContent = data.version || '—';
+    log.innerHTML += `\n<span class="ok">[${time}] ✓ Online — uptime ${Math.round(data.uptime||0)}s, v${data.version||'?'}</span>`;
+    renderSourceStatus();
+    refreshMetrics();
+  } catch(e) {
+    document.getElementById('aiStatusNum').textContent = '✕ Offline';
+    document.getElementById('aiStatusNum').style.color = '#f85149';
+    log.innerHTML += `\n<span class="err">[${time}] ✗ ${e.message} — Is launcher.py running?</span>`;
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+async function refreshMetrics() {
+  try {
+    const res  = await fetch(`${AI_BASE()}/metrics`, { signal: AbortSignal.timeout(3000) });
+    const data = await res.json();
+    if (!data.ok) return;
+    const m = data.metrics || data;
+    document.getElementById('met_cacheHit').textContent  = `${m.cacheHitRate ?? '—'}%`;
+    document.getElementById('met_dailyCost').textContent  = `$${(m.dailyCostUsd ?? 0).toFixed(4)}`;
+    document.getElementById('met_latency').textContent    = `${m.avgLatencyMs ?? '—'}ms`;
+    document.getElementById('met_requests').textContent   = m.totalRequests ?? '—';
+    document.getElementById('met_tier1').textContent      = m.tierBreakdown?.tier1 ?? '—';
+    document.getElementById('met_tier2').textContent      = m.tierBreakdown?.tier2 ?? '—';
+    document.getElementById('met_tier3').textContent      = m.tierBreakdown?.tier3 ?? '—';
+    if (m.sourceFailures > 0) {
+      document.getElementById('met_failures').textContent = `⚠ ${m.sourceFailures} source failure(s) today`;
+      document.getElementById('met_failures').style.color = '#f0883e';
+    }
+  } catch {}
+}
+
+function startHealthPoll() {
+  document.getElementById('pollBtn').style.display     = 'none';
+  document.getElementById('pollStopBtn').style.display = 'inline-flex';
+  checkAIHealth();
+  healthPollTimer = setInterval(checkAIHealth, 10000);
+}
+function stopHealthPoll() {
+  clearInterval(healthPollTimer);
+  document.getElementById('pollBtn').style.display     = 'inline-flex';
+  document.getElementById('pollStopBtn').style.display = 'none';
+}
+
+function renderSourceStatus() {
+  const keys = getAIKeysFromStorage();
+  const keyMap = {
+    GOOGLE_PLACES_API_KEY: keys.gplaces,
+    FOURSQUARE_API_KEY:    keys.foursquare,
+    REDDIT_CLIENT_ID:      keys.redditId,
+    SERP_API_KEY:          keys.serp,
+    APIFY_TOKEN:           keys.apify,
+  };
+  const tierColors = { Primary:'#3fb950', Regional:'#58a6ff', Signal:'#a78bfa', Free:'#8b949e' };
+  document.getElementById('sourceStatusBody').innerHTML = V2_SOURCES.map(s => {
+    const hasKey = s.env === '—' ? true : !!keyMap[s.env];
+    return `<tr>
+      <td style="color:#e6edf3;font-weight:600;font-family:monospace;font-size:11px">${s.id}</td>
+      <td style="font-family:monospace;font-size:10px;color:#8b949e">${s.env}</td>
+      <td><span style="font-size:10px;color:${tierColors[s.tier]}">${s.tier}</span></td>
+      <td>${hasKey ? '<span class="pill pill-green">✓ Set</span>' : s.env === '—' ? '<span class="pill" style="background:rgba(139,148,158,.1);color:#8b949e;border:1px solid #30363d">Free</span>' : '<span class="pill pill-red">Missing</span>'}</td>
+      <td style="color:#8b949e;font-size:11px">${s.signal}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function testGeoRoute() {
+  const q   = document.getElementById('geoTestInput').value.trim();
+  const log = document.getElementById('geoLog');
+  if (!q) return;
+  log.style.display = 'block';
+  log.innerHTML = '<span class="info">Classifying...</span>';
+  try {
+    const res  = await fetch(`${AI_BASE()}/search/classify`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ query: q }), signal: AbortSignal.timeout(8000),
+    });
+    const data = await res.json();
+    const cl   = data.classification || {};
+    const geo  = data.geo || {};
+    const tierLabels = { 1:'Tier 1 — No LLM (API + scoring)', 2:'Tier 2 — AI Enhanced (cheap model)', 3:'Tier 3 — AI Planner (premium model)' };
+    log.innerHTML = [
+      `<span class="ok">Tier:     ${tierLabels[cl.tier] || cl.tier} | Reason: ${cl.reason}</span>`,
+      `<span class="ok">Country:  ${geo.countryName} (${geo.countryCode}) | Lang: ${geo.lang}</span>`,
+      `<span class="ok">Category: ${cl.intent?.category} | Budget: ${cl.intent?.budget ? '$'+cl.intent.budget : 'none'}</span>`,
+      `<span class="ok">Modifiers:${(cl.intent?.modifiers||[]).join(', ')||'none'} | Dietary: ${(cl.intent?.dietary||[]).join(', ')||'none'}</span>`,
+    ].join('\n');
+  } catch(e) {
+    log.innerHTML = `<span class="err">Error: ${e.message}</span>`;
+  }
+}
+
+async function checkCacheStats() {
+  try {
+    const res  = await fetch(`${AI_BASE()}/search/admin/cache/stats`, { signal: AbortSignal.timeout(3000) });
+    const data = await res.json();
+    document.getElementById('cacheResult').textContent =
+      `Backend: ${data.backend || '—'} · Redis keys: ${data.redisKeys ?? '—'} · Memory keys: ${data.memKeys ?? '—'}`;
+  } catch(e) {
+    document.getElementById('cacheResult').textContent = 'Could not reach backend: ' + e.message;
+  }
+}
+
+async function clearAICache() {
+  try {
+    const res  = await fetch(`${AI_BASE()}/search/admin/cache/clear`, {
+      method: 'POST', signal: AbortSignal.timeout(5000)
+    });
+    const data = await res.json();
+    document.getElementById('cacheResult').textContent = data.ok ? '✓ Cache cleared' : data.message;
+    document.getElementById('cacheResult').style.color = '#3fb950';
+  } catch(e) {
+    document.getElementById('cacheResult').textContent = 'Error: ' + e.message;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// AI API KEYS v2 (localStorage-backed)
+// ════════════════════════════════════════════════════════════════
+const AI_KEY_STORE = 'voy_ai_keys_v2';
+
+function getAIKeysFromStorage() {
+  try { return JSON.parse(localStorage.getItem(AI_KEY_STORE) || '{}'); }
+  catch { return {}; }
+}
+
+function loadAIKeys() {
+  const k = getAIKeysFromStorage();
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+  set('aiAnthKey',      k.anth);
+  set('aiOpenAIKey',    k.openai);
+  set('aiGeminiKey',    k.gemini);
+  set('aiGPlacesKey',   k.gplaces);
+  set('aiFoursquareKey',k.foursquare);
+  set('aiSerpKey',      k.serp);
+  set('aiApifyToken',   k.apify);
+  set('aiRedditId',     k.redditId);
+  set('aiRedditSecret', k.redditSec);
+  set('aiRedisUrl',     k.redisUrl);
+  if (k.provider) document.getElementById('aiProvider').value = k.provider;
+  refreshEnvPreview();
+}
+
+function saveAIKeys() {
+  const g = id => document.getElementById(id)?.value.trim() || '';
+  const keys = {
+    anth:       g('aiAnthKey'),
+    openai:     g('aiOpenAIKey'),
+    gemini:     g('aiGeminiKey'),
+    gplaces:    g('aiGPlacesKey'),
+    foursquare: g('aiFoursquareKey'),
+    serp:       g('aiSerpKey'),
+    apify:      g('aiApifyToken'),
+    redditId:   g('aiRedditId'),
+    redditSec:  g('aiRedditSecret'),
+    redisUrl:   g('aiRedisUrl'),
+    provider:   document.getElementById('aiProvider')?.value || 'claude',
+  };
+  localStorage.setItem(AI_KEY_STORE, JSON.stringify(keys));
+  const msg = document.getElementById('aiKeysMsg');
+  msg.style.color = '#3fb950';
+  msg.textContent = '✓ Saved — copy .env and paste into voyager-ai/.env, then restart the backend.';
+  refreshEnvPreview();
+}
+
+function refreshEnvPreview() {
+  const g    = id => document.getElementById(id)?.value.trim() || '';
+  const prov = document.getElementById('aiProvider')?.value || 'claude';
+  const lines = [
+    `# Active LLM provider`,
+    `ACTIVE_LLM_PROVIDER=${prov}`,
+    ``,
+    `# LLM Keys`,
+    `ANTHROPIC_API_KEY=${g('aiAnthKey')}`,
+    `OPENAI_API_KEY=${g('aiOpenAIKey')}`,
+    `GEMINI_API_KEY=${g('aiGeminiKey')}`,
+    ``,
+    `# Primary data sources`,
+    `GOOGLE_PLACES_API_KEY=${g('aiGPlacesKey')}`,
+    `FOURSQUARE_API_KEY=${g('aiFoursquareKey')}`,
+    `SERP_API_KEY=${g('aiSerpKey')}`,
+    ``,
+    `# Community + regional sources`,
+    `REDDIT_CLIENT_ID=${g('aiRedditId')}`,
+    `REDDIT_SECRET=${g('aiRedditSecret')}`,
+    `APIFY_TOKEN=${g('aiApifyToken')}`,
+    ``,
+    `# Infrastructure`,
+    `REDIS_URL=${g('aiRedisUrl') || 'redis://127.0.0.1:6379'}`,
+    `VOYAGER_AI_PORT=3747`,
+  ];
+  const el = document.getElementById('envPreview');
+  if (el) el.textContent = lines.join('\n');
+}
+
+function copyEnvFile() {
+  const el = document.getElementById('envPreview');
+  if (!el) return;
+  navigator.clipboard?.writeText(el.textContent);
+  const msg = document.getElementById('aiKeysMsg');
+  msg.style.color = '#3fb950';
+  msg.textContent = '✓ .env contents copied — paste into voyager-ai/.env and restart backend.';
+}
+
+async function testAIPort() {
+  const msg = document.getElementById('aiPortMsg');
+  msg.style.color = '#8b949e'; msg.textContent = 'Testing...';
+  try {
+    const res = await fetch(`${AI_BASE()}/health`, { signal: AbortSignal.timeout(3000) });
+    const d   = await res.json();
+    msg.style.color = '#3fb950';
+    msg.textContent = `✓ v${d.version} responding — uptime ${Math.round(d.uptime||0)}s`;
+  } catch(e) {
+    msg.style.color = '#f85149';
+    msg.textContent = `✗ Not reachable: ${e.message}`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// QUERY CLASSIFIER
+// ════════════════════════════════════════════════════════════════
+async function runClassify() {
+  const q = document.getElementById('classifyQuery').value.trim();
+  if (!q) return;
+  const wrap = document.getElementById('classifyResult');
+  const log  = document.getElementById('classifyLog');
+  wrap.style.display = 'block';
+  log.innerHTML = '<span class="info">Classifying (no LLM used)...</span>';
+  try {
+    const res  = await fetch(`${AI_BASE()}/search/classify`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ query: q }), signal: AbortSignal.timeout(8000),
+    });
+    const data = await res.json();
+    const cl   = data.classification || {};
+    const geo  = data.geo || {};
+    const tierColors = { 1:'#3fb950', 2:'#58a6ff', 3:'#a78bfa' };
+    const tierCosts  = { 1:'$0.000 (no LLM)', 2:'~$0.001 (cheap)', 3:'~$0.01–0.05 (premium)' };
+    document.getElementById('cl_tier').textContent    = `Tier ${cl.tier}`;
+    document.getElementById('cl_tier').style.color    = tierColors[cl.tier] || '#58a6ff';
+    document.getElementById('cl_country').textContent = `${geo.countryName||'?'} (${geo.countryCode||'?'})`;
+    document.getElementById('cl_category').textContent= cl.intent?.category || '—';
+    document.getElementById('cl_cost').textContent    = tierCosts[cl.tier] || '—';
+    log.innerHTML = [
+      `<span class="ok">Tier ${cl.tier}: ${cl.reason}</span>`,
+      `<span class="ok">Geo: ${geo.countryName} · Lang: ${geo.lang} · Filter: ${geo.searchLangFilter||'none'}</span>`,
+      `<span class="ok">Modifiers: ${(cl.intent?.modifiers||[]).join(', ')||'none'}</span>`,
+      `<span class="ok">Dietary: ${(cl.intent?.dietary||[]).join(', ')||'none'}</span>`,
+      cl.intent?.budget ? `<span class="ok">Budget: $${cl.intent.budget}</span>` : '',
+      cl.intent?.duration ? `<span class="ok">Duration: ${cl.intent.duration} days</span>` : '',
+    ].filter(Boolean).join('\n');
+  } catch(e) {
+    log.innerHTML = `<span class="err">Error: ${e.message} — Is the backend running?</span>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SCORING CONFIG v2
+// ════════════════════════════════════════════════════════════════
+const SCORE_KEY = 'voy_scoring_config_v2';
+const DEFAULT_WEIGHTS = {
+  rating_weight: 0.30, volume_weight: 0.15, recency_weight: 0.15,
+  authority_weight: 0.20, trend_weight: 0.10, local_source_weight: 0.10
+};
+const WEIGHT_LABELS = {
+  rating_weight: 'Rating', volume_weight: 'Volume', recency_weight: 'Recency',
+  authority_weight: 'Authority', trend_weight: 'Trend', local_source_weight: 'Local Source',
+};
+
+function buildWeightSliders() {
+  const saved   = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
+  const weights = { ...DEFAULT_WEIGHTS, ...(saved.weights || {}) };
+  const wrap    = document.getElementById('weightSliders');
+  if (!wrap) return;
+  wrap.innerHTML = Object.entries(weights).map(([k, v]) => `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="width:110px;font-size:12px;color:#8b949e;font-family:monospace;font-size:11px">${WEIGHT_LABELS[k]}</span>
+      <input type="range" id="w_${k}" min="0" max="1" step="0.01" value="${v}"
+        style="flex:1;accent-color:#1f6feb" oninput="updateWeightTotal()">
+      <span id="wv_${k}" style="width:44px;text-align:right;font-family:monospace;font-size:12px;color:#58a6ff">${Math.round(v*100)}%</span>
+    </div>`).join('');
+  updateWeightTotal();
+}
+
+function updateWeightTotal() {
+  let total = 0;
+  Object.keys(DEFAULT_WEIGHTS).forEach(k => {
+    const val = parseFloat(document.getElementById('w_'+k)?.value || 0);
+    const span = document.getElementById('wv_'+k);
+    if (span) span.textContent = Math.round(val*100) + '%';
+    total += val;
+  });
+  const el = document.getElementById('weightsTotal');
+  const ok = Math.abs(total-1) < 0.02;
+  el.textContent = `Total: ${total.toFixed(2)} ${ok ? '✓' : '⚠ Adjust to equal 1.00'}`;
+  el.style.color = ok ? '#3fb950' : '#f85149';
+}
+
+function saveWeights() {
+  const weights = {};
+  let total = 0;
+  Object.keys(DEFAULT_WEIGHTS).forEach(k => {
+    weights[k] = parseFloat(document.getElementById('w_'+k).value);
+    total += weights[k];
+  });
+  if (Math.abs(total-1) > 0.02) {
+    document.getElementById('weightsMsg').style.color = '#f85149';
+    document.getElementById('weightsMsg').textContent = '✗ Weights must sum to 1.00';
+    return;
+  }
+  const saved = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
+  saved.weights = weights;
+  localStorage.setItem(SCORE_KEY, JSON.stringify(saved));
+  document.getElementById('weightsMsg').style.color   = '#3fb950';
+  document.getElementById('weightsMsg').textContent   = '✓ Saved — picked up on next search.';
+}
+
+function resetWeights() {
+  Object.entries(DEFAULT_WEIGHTS).forEach(([k,v]) => {
+    const el = document.getElementById('w_'+k);
+    if (el) el.value = v;
+  });
+  updateWeightTotal();
+}
+
+function saveMichelinFloors() {
+  const floors = {
+    michelin_3_star:  parseInt(document.getElementById('floor3star').value),
+    michelin_2_star:  parseInt(document.getElementById('floor2star').value),
+    michelin_1_star:  parseInt(document.getElementById('floor1star').value),
+    michelin_bib:     parseInt(document.getElementById('floorBib').value),
+  };
+  const saved = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
+  saved.michelinFloors = floors;
+  localStorage.setItem(SCORE_KEY, JSON.stringify(saved));
+  document.getElementById('michelinMsg').style.color   = '#3fb950';
+  document.getElementById('michelinMsg').textContent   = '✓ Floors saved.';
+}
+
+function saveBonusSettings() {
+  const bonus = {
+    trendingBonusLocal:   parseInt(document.getElementById('trendBonusLocal').value),
+    trendingBonusTourist: parseInt(document.getElementById('trendBonusTourist').value),
+    volumeBonusMax:       parseInt(document.getElementById('volBonusMax').value),
+    lowSignalMinReviews:  parseInt(document.getElementById('lowSigMin').value),
+    lowSignalCapScore:    parseInt(document.getElementById('lowSigCap').value),
+  };
+  const saved = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
+  saved.bonusSettings = bonus;
+  localStorage.setItem(SCORE_KEY, JSON.stringify(saved));
+  document.getElementById('bonusMsg').style.color   = '#3fb950';
+  document.getElementById('bonusMsg').textContent   = '✓ Saved.';
+}
+
+function resetBonusSettings() {
+  document.getElementById('trendBonusLocal').value   = 3;
+  document.getElementById('trendBonusTourist').value = 5;
+  document.getElementById('volBonusMax').value        = 8;
+  document.getElementById('lowSigMin').value          = 15;
+  document.getElementById('lowSigCap').value          = 72;
+  document.getElementById('bonusMsg').textContent     = '';
+}
+
+function loadScoringConfig() {
+  const saved = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
+  if (saved.michelinFloors) {
+    document.getElementById('floor3star').value = saved.michelinFloors.michelin_3_star || 92;
+    document.getElementById('floor2star').value = saved.michelinFloors.michelin_2_star || 88;
+    document.getElementById('floor1star').value = saved.michelinFloors.michelin_1_star || 85;
+    document.getElementById('floorBib').value   = saved.michelinFloors.michelin_bib    || 75;
+  }
+  if (saved.bonusSettings) {
+    document.getElementById('trendBonusLocal').value   = saved.bonusSettings.trendingBonusLocal   || 3;
+    document.getElementById('trendBonusTourist').value = saved.bonusSettings.trendingBonusTourist || 5;
+    document.getElementById('volBonusMax').value        = saved.bonusSettings.volumeBonusMax       || 8;
+    document.getElementById('lowSigMin').value          = saved.bonusSettings.lowSignalMinReviews  || 15;
+    document.getElementById('lowSigCap').value          = saved.bonusSettings.lowSignalCapScore    || 72;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// TEST SEARCH v2
+// ════════════════════════════════════════════════════════════════
+function testLog(type, msg) {
+  const el = document.getElementById('testLog');
+  el.innerHTML += `\n<span class="${type}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
+  el.scrollTop  = el.scrollHeight;
+}
+
+async function runTestSearch() {
+  const query = document.getElementById('testQuery').value.trim();
+  if (!query) { alert('Enter a query.'); return; }
+  const btn = document.getElementById('testSearchBtn');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  document.getElementById('testResultWrap').style.display = 'none';
+  testLog('info', `Pipeline: "${query}"`);
+
+  const r = parseInt(document.getElementById('tw_rating').value)  || 40;
+  const v = parseInt(document.getElementById('tw_reviews').value) || 20;
+  const p = parseInt(document.getElementById('tw_value').value)   || 25;
+  const f = parseInt(document.getElementById('tw_features').value)|| 15;
+  const t = r+v+p+f || 100;
+
+  try {
+    testLog('info', `POST ${AI_BASE()}/search`);
+    const start = Date.now();
+    const res   = await fetch(`${AI_BASE()}/search`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        query,
+        priority:  document.getElementById('testPriority').value,
+        noCache:   document.getElementById('testNoCache').value === 'true',
+        ipCountry: document.getElementById('testIpCountry').value.trim() || undefined,
+        weights: { rating: r/t, reviews: v/t, value: p/t, features: f/t },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const data = await res.json();
+    const ms   = Date.now() - start;
+    if (!data.ok) throw new Error(data.error || 'Unknown error');
+    testLog('ok', `✓ Tier ${data.result.tier} · ${data.result.results?.length||0} results · ${ms}ms${data.result._fromCache?' (cached)':''}`);
+    renderTestResult(data.result);
+  } catch(e) {
+    testLog('err', `✗ ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Run Pipeline';
+  }
+}
+
+function renderTestResult(r) {
+  if (!r) return;
+  const SC    = s => s >= 90 ? '#3fb950' : s >= 80 ? '#14b8a6' : s >= 70 ? '#f0883e' : '#f85149';
+  const tier  = r.tier || 1;
+  const top   = r.top  || r.results?.[0];
+  const list  = r.results || [];
+
+  // Tier banner
+  const tierBg    = { 1:'rgba(20,184,166,.08)', 2:'rgba(79,142,247,.08)', 3:'rgba(167,139,250,.08)' }[tier];
+  const tierColor = { 1:'#14b8a6', 2:'#58a6ff', 3:'#a78bfa' }[tier];
+  const tierLabel = { 1:'Tier 1 — No LLM · APIs + scoring only', 2:'Tier 2 — AI Enhanced · cheap model', 3:'Tier 3 — AI Planner · premium model' }[tier];
+  document.getElementById('res_tier_banner').style.background = tierBg;
+  document.getElementById('res_tier_banner').style.border     = `1px solid ${tierColor}33`;
+  document.getElementById('res_tier_banner').innerHTML =
+    `<span style="font-size:14px">✦</span><span style="color:${tierColor};font-weight:600">${tierLabel}</span>` +
+    `<span style="margin-left:auto;font-size:11px;color:#8b949e">${r._fromCache?'cached':'live'} · ${r.geo?.countryName||''}</span>`;
+
+  // Stats
+  if (top) {
+    document.getElementById('res_local_score').textContent  = top.localScore   ?? '—';
+    document.getElementById('res_local_score').style.color  = SC(top.localScore);
+    document.getElementById('res_tourist_score').textContent= top.touristScore ?? '—';
+    document.getElementById('res_tourist_score').style.color= SC(top.touristScore);
+    document.getElementById('res_gap').textContent          = (top.scoreGap >= 0 ? '+' : '') + (top.scoreGap ?? '—');
+    document.getElementById('res_gap').style.color          = top.scoreGap > 5 ? '#3fb950' : top.scoreGap < -5 ? '#f85149' : '#8b949e';
+  }
+  document.getElementById('res_results_count').textContent = list.length;
+
+  // Top result
+  if (top) {
+    document.getElementById('res_place').textContent   = top.name || '—';
+    document.getElementById('res_oneline').textContent = top.description?.slice(0,80) || '—';
+    document.getElementById('res_snippet').textContent = top.aiSnippet ? `"${top.aiSnippet}"` : '';
+    document.getElementById('res_geo').textContent     = r.geo ? `${r.geo.countryName} (${r.geo.countryCode}) · ${r.geo.lang}` : '—';
+    document.getElementById('res_sources').textContent = (top.sourcesUsed||[]).join(', ') || '—';
+    document.getElementById('res_intent').textContent  = r.intent ? `${r.intent.category}${r.intent.modifiers?.length?' · '+r.intent.modifiers.join(', '):''}` : '—';
+    document.getElementById('res_gap_explain').textContent = r.gapExplanation || (top.scoreGap && Math.abs(top.scoreGap) >= 10 ? 'Significant gap detected' : 'No notable gap') ;
+    document.getElementById('res_badges').innerHTML = (top.displayBadges||[]).map(b =>
+      `<span class="pill pill-green" style="margin-right:4px;font-size:10px">${b}</span>`
+    ).join('') + (top.trending ? '<span class="pill" style="background:rgba(240,136,62,.15);color:#f0883e;border:1px solid rgba(240,136,62,.3)">🔥 Trending</span>' : '');
+  }
+
+  // All results table
+  document.getElementById('res_all_count').textContent = `— ${list.length} places`;
+  document.getElementById('res_all_list').innerHTML = list.slice(0,10).map((c,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#0d1117;border-radius:6px;border:1px solid #1c2128">
+      <div style="width:18px;font-size:10px;color:#484f58;font-weight:700;flex-shrink:0">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+        ${c.aiSnippet ? `<div style="font-size:10px;color:#58a6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.aiSnippet}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <div style="text-align:center;padding:3px 8px;background:#161b22;border-radius:4px">
+          <div style="font-size:13px;font-weight:700;color:${SC(c.localScore)}">${c.localScore??'—'}</div>
+          <div style="font-size:8px;color:#484f58">Local</div>
+        </div>
+        <div style="text-align:center;padding:3px 8px;background:#161b22;border-radius:4px">
+          <div style="font-size:13px;font-weight:700;color:${SC(c.touristScore)}">${c.touristScore??'—'}</div>
+          <div style="font-size:8px;color:#484f58">Tourist</div>
+        </div>
+      </div>
+      ${(c.displayBadges||[]).length ? `<span style="font-size:10px;color:#e3b341">⭐</span>` : ''}
+      ${c.priceRange ? `<span style="font-size:10px;color:#484f58;font-family:monospace">${c.priceRange}</span>` : ''}
+    </div>`).join('');
+
+  // Itinerary (tier 3)
+  if (r.itinerary) {
+    const card = document.getElementById('res_itinerary_card');
+    const div  = document.getElementById('res_itinerary');
+    card.style.display = 'block';
+    const it = r.itinerary;
+    div.innerHTML = `<div style="font-size:14px;font-weight:600;color:#e6edf3;margin-bottom:4px">${it.title||''}</div>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:12px">${it.summary||''}</div>
+      ${(it.days||[]).map(d=>`
+        <div style="margin-bottom:10px;padding:10px;background:#0d1117;border-radius:6px;border:1px solid #1c2128">
+          <div style="font-size:11px;color:#a78bfa;font-weight:700;margin-bottom:6px">Day ${d.day}: ${d.theme||''}</div>
+          ${['morning','lunch','afternoon','dinner','evening'].filter(s=>d[s]).map(s=>`
+            <div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:10px;color:#484f58;width:60px">${s}</span><span style="font-size:11px;color:#8b949e">${d[s]?.place||''} — ${d[s]?.activity||''}</span></div>
+          `).join('')}
+        </div>`).join('')}
+      ${it.estimatedBudget ? `<div style="font-size:11px;color:#8b949e;margin-top:6px">💰 ${it.estimatedBudget}</div>` : ''}`;
+  } else {
+    document.getElementById('res_itinerary_card').style.display = 'none';
+  }
+
+  document.getElementById('rawJsonOutput').textContent = JSON.stringify(r, null, 2);
+  document.getElementById('testResultWrap').style.display = 'block';
+}
+
+function clearTestResult() {
+  document.getElementById('testResultWrap').style.display = 'none';
+  document.getElementById('testQuery').value = '';
+  document.getElementById('testLog').innerHTML = 'Cleared.';
+}
+
+// ════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  loadAIKeys();
+  buildWeightSliders();
+  loadScoringConfig();
+  refreshEnvPreview();
+});
+</script>
+</body>
+</html>

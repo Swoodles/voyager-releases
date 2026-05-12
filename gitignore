@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller output
+dist/
+build/
+
+# AI backend
+voyager-ai/.env
+voyager-ai/node_modules/
+voyager-ai/package-lock.json
+
+# Secrets
+.env
+
+# Editor
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
